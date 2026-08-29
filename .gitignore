@@ -1,0 +1,29 @@
+# Environment variables (Sensitive)
+.env
+.env.local
+.env.*.local
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Local databases
+*.db
+*.sqlite3
+local_biometric.db
+
+# Dynamic uploads (preserve folder structure)
+uploads/fingerprints/*
+!uploads/fingerprints/.gitkeep
+uploads/samples/*
+!uploads/samples/.gitkeep
+
+# Operating system files
+.DS_Store
+Thumbs.db

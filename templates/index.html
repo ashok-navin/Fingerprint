@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepPrint ID | Deep Learning Fingerprint Recognition for Unknown Person Identification</title>
+    <meta name="description"
+        content="Deep Learning-Based Biometric Fingerprint Recognition and Unknown Person Identification System with CNN feature extraction, MongoDB Atlas database, and instant profile matching.">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body class="dark-theme">
+
+    <!-- Top Navigation & System Status Bar -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand-group">
+                <div class="brand-icon-wrapper">
+                    <i class="fa-solid fa-fingerprint brand-icon pulse-glow"></i>
+                </div>
+                <div class="brand-text">
+                    <h1 class="brand-title">DEEP<span class="highlight">PRINT</span> ID</h1>
+                    <p class="brand-subtitle">Deep Learning-Based Fingerprint Recognition for Unknown Person
+                        Identification</p>
+                </div>
+            </div>
+
+            <!-- Header Metrics -->
+            <div class="header-metrics">
+                <div class="metric-pill" id="dbStatusPill" title="Click to view Database Connection Settings">
+                    <span class="status-indicator live" id="dbIndicator"></span>
+                    <i class="fa-solid fa-database metric-icon"></i>
+                    <span class="metric-label" id="dbStatusText">Checking DB...</span>
+                </div>
+                <div class="metric-pill">
+                    <i class="fa-solid fa-microchip metric-icon"></i>
+                    <span class="metric-label">CNN: 256-D Latent</span>
+                </div>
+                <div class="metric-pill user-count-pill" id="userCountBadge">
+                    <i class="fa-solid fa-users metric-icon"></i>
+                    <span class="metric-label"><strong id="totalUsersCount">5</strong> Registered</span>
+                </div>
+                <button class="sound-toggle-btn" id="soundToggleBtn" title="Toggle Futuristic Audio SFX">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs-wrapper">
+            <div class="nav-tabs">
+                <button class="tab-btn active" data-tab="tab-scan" id="tabBtnScan">
+                    <i class="fa-solid fa-expand"></i>
+                    <span>Scan & Identify</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-enroll" id="tabBtnEnroll">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span>Enroll New User</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-directory" id="tabBtnDirectory">
+                    <i class="fa-solid fa-address-book"></i>
+                    <span>Citizen Directory</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-cnn" id="tabBtnCnn">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>CNN Visualizer</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-config" id="tabBtnConfig">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Database & .env</span>
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+
+        <!-- ============================================================== -->
+        <!-- TAB 1: SCAN & IDENTIFY (MAIN AI BIOMETRIC DETECTION) -->
+        <!-- ============================================================== -->
+        <section class="tab-panel active" id="tab-scan">
+            <div class="scan-grid">
+
+                <!-- Left: Scanner Terminal -->
+                <div class="scanner-card glass-panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <i class="fa-solid fa-crosshairs panel-icon"></i>
+                            <div>
+                                <h2 class="panel-title">Biometric Scanner Console</h2>
+                                <p class="panel-desc">Upload or test a fingerprint to identify personal & emergency
+                                    records</p>
+                            </div>
+                        </div>
+                        <span class="badge badge-cyan">CNN INFERENCE READY</span>
+                    </div>
+
+
+
+                    <!-- Holographic Scan HUD Zone -->
+                    <div class="scanner-dropzone" id="scannerDropzone">
+                        <input type="file" id="fingerprintFileInput" accept="image/*" class="file-input-hidden">
+
+                        <div class="scanner-viewport" id="scannerViewport">
+                            <!-- Laser scan bar -->
+                            <div class="scanner-laser" id="scannerLaser"></div>
+
+                            <!-- Scanner HUD Overlay -->
+                            <div class="scanner-hud-overlay">
+                                <div class="hud-corner top-left"></div>
+                                <div class="hud-corner top-right"></div>
+                                <div class="hud-corner bottom-left"></div>
+                                <div class="hud-corner bottom-right"></div>
+                                <div class="hud-reticle"></div>
+                            </div>
+
+                            <!-- Preview or Placeholder -->
+                            <div class="scanner-placeholder" id="scannerPlaceholder">
+                                <i class="fa-solid fa-fingerprint scan-main-icon"></i>
+                                <p class="dropzone-text"><strong>Drag & Drop Fingerprint Scan</strong></p>
+                                <p class="dropzone-sub">or click to browse from device (PNG, JPG, BMP)</p>
+                            </div>
+                            <img id="scannedImagePreview" class="scanned-image-preview hidden"
+                                alt="Scanned Fingerprint">
+                        </div>
+
+                        <!-- Scan Status HUD Text -->
+                        <div class="scan-status-ticker" id="scanStatusTicker">
+                            <span class="ticker-dot"></span>
+                            <span id="scanTickerText">READY: Awaiting fingerprint scan input</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="scanner-actions">
+                        <button class="btn btn-secondary" id="browseFileBtn">
+                            <i class="fa-solid fa-folder-open"></i> Choose Image File
+                        </button>
+                        <button class="btn btn-primary btn-glow" id="startScanBtn" disabled>
+                            <i class="fa-solid fa-magnifying-glass-chart"></i> Execute AI Recognition
+                        </button>
+                        <button class="btn btn-ghost" id="resetScanBtn">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+                        </button>
+                    </div>
+
+                    <!-- Preprocessing Info Box -->
+                    <div class="preprocess-stats-row">
+                        <div class="stat-mini">
+                            <span class="stat-mini-label">Enhancement</span>
+                            <span class="stat-mini-val">CLAHE + Gabor</span>
+                        </div>
+                        <div class="stat-mini">
+                            <span class="stat-mini-label">Minutiae Points</span>
+                            <span class="stat-mini-val" id="minutiaeCountVal">--</span>
+                        </div>
+                        <div class="stat-mini">
+                            <span class="stat-mini-label">Cosine Threshold</span>
+                            <span class="stat-mini-val">65.0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Identification Result & Citizen Profile -->
+                <div class="result-card glass-panel" id="resultCard">
+
+                    <!-- Awaiting State -->
+                    <div class="result-empty-state" id="resultEmptyState">
+                        <div class="empty-animation-ring">
+                            <i class="fa-solid fa-id-card empty-icon"></i>
+                        </div>
+                        <h3>No Biometric Scan Analyzed</h3>
+                        <p>Upload a fingerprint image or drag & drop a scan on the left to extract CNN latent embeddings
+                            and retrieve the full citizen record.</p>
+                        <div class="empty-features-list">
+                            <div class="feature-tag"><i class="fa-solid fa-check text-emerald"></i> Full Name & Age
+                            </div>
+                            <div class="feature-tag"><i class="fa-solid fa-check text-emerald"></i> Mobile & Address
+                            </div>
+                            <div class="feature-tag"><i class="fa-solid fa-check text-emerald"></i> Blood Group &
+                                Emergency Contact</div>
+                        </div>
+                    </div>
+
+                    <!-- Scanning Loader State -->
+                    <div class="result-loading-state hidden" id="resultLoadingState">
+                        <div class="radar-spinner"></div>
+                        <h3 class="loading-title">Extracting 256-D CNN Ridge Vector...</h3>
+                        <p class="loading-desc" id="loadingStepText">Applying Gabor Orientation Filter & Minutiae
+                            Mapping</p>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="scanProgressFill"></div>
+                        </div>
+                    </div>
+
+                    <!-- Match Found State -->
+                    <div class="result-details-content hidden" id="resultMatchState">
+
+                        <!-- Top Banner: Verification Status & Score Gauge -->
+                        <div class="verification-banner" id="verificationBanner">
+                            <div class="verification-badge-group">
+                                <div class="status-shield-icon" id="statusShieldIcon">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                                <div>
+                                    <div class="verif-title" id="verifTitle">BIOMETRIC IDENTITY VERIFIED</div>
+                                    <div class="verif-subtitle" id="verifSubtitle">100% Match in Database</div>
+                                </div>
+                            </div>
+                            <div class="score-circle-wrapper">
+                                <div class="score-percent" id="scorePercentVal">99.4%</div>
+                                <div class="score-label">CNN Confidence</div>
+                            </div>
+                        </div>
+
+                        <!-- User Profile Card -->
+                        <div class="citizen-profile-grid">
+
+                            <!-- Profile Header Box -->
+                            <div class="profile-header-box">
+                                <div class="avatar-box" id="avatarBox">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                <div class="profile-title-col">
+                                    <div class="citizen-name-row">
+                                        <h2 class="citizen-name" id="resName">Alexander Vance</h2>
+                                        <span class="blood-badge" id="resBloodGroup"><i class="fa-solid fa-droplet"></i>
+                                            O+</span>
+                                    </div>
+                                    <div class="citizen-meta-pills">
+                                        <span class="meta-pill" id="resGenderPill"><i
+                                                class="fa-solid fa-venus-mars"></i> Male</span>
+                                        <span class="meta-pill" id="resAgePill"><i class="fa-solid fa-cake-candles"></i>
+                                            34 Yrs</span>
+                                        <span class="meta-pill id-pill" id="resIdPill">ID: #usr_001</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Detailed Information Fields -->
+                            <div class="details-fields-list">
+
+                                <!-- Mobile Number -->
+                                <div class="field-item">
+                                    <div class="field-icon-box cyan-box">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </div>
+                                    <div class="field-info">
+                                        <div class="field-label">Mobile Number</div>
+                                        <div class="field-value-row">
+                                            <span class="field-value highlight-val" id="resMobile">+1 (555)
+                                                234-8901</span>
+                                            <button class="btn-copy-sm" onclick="copyText('resMobile')"
+                                                title="Copy Phone Number">
+                                                <i class="fa-regular fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Emergency Contact -->
+                                <div class="field-item emergency-field-item">
+                                    <div class="field-icon-box red-box">
+                                        <i class="fa-solid fa-truck-medical"></i>
+                                    </div>
+                                    <div class="field-info">
+                                        <div class="field-label emergency-label">🚨 Emergency Contact & Next of Kin
+                                        </div>
+                                        <div class="field-value emergency-val" id="resEmergencyContact">+1 (555)
+                                            902-1144 (Elena Vance - Spouse)</div>
+                                    </div>
+                                    <a href="#" id="emergencyCallBtn" class="btn btn-emergency-action"
+                                        title="Call Emergency Contact">
+                                        <i class="fa-solid fa-phone-volume"></i> Alert
+                                    </a>
+                                </div>
+
+                                <!-- Residential Address -->
+                                <div class="field-item">
+                                    <div class="field-icon-box emerald-box">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                    </div>
+                                    <div class="field-info">
+                                        <div class="field-label">Residential Address</div>
+                                        <div class="field-value" id="resAddress">402 Silicon Vista Blvd, Tech District,
+                                            San Francisco, CA 94107</div>
+                                    </div>
+                                </div>
+
+                                <!-- Biometric Minutiae & Registration Details -->
+                                <div class="field-item">
+                                    <div class="field-icon-box purple-box">
+                                        <i class="fa-solid fa-fingerprint"></i>
+                                    </div>
+                                    <div class="field-info">
+                                        <div class="field-label">Biometric Verification Diagnostics</div>
+                                        <div class="meta-subgrid">
+                                            <div><span>Minutiae Features:</span> <strong id="resMinutiaeCount">48
+                                                    points</strong></div>
+                                            <div><span>Similarity Metric:</span> <strong
+                                                    id="resSimScore">0.9942</strong></div>
+                                            <div><span>Enrolled On:</span> <strong id="resCreatedAt">Aug 2026</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Match Action Toolbar -->
+                            <div class="result-actions-toolbar">
+                                <button class="btn btn-secondary" id="printBadgeBtn">
+                                    <i class="fa-solid fa-id-badge"></i> Print ID Profile
+                                </button>
+                                <button class="btn btn-ghost" id="viewInCnnBtn">
+                                    <i class="fa-solid fa-network-wired"></i> Inspect CNN Maps
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- No Match / Unregistered State -->
+                    <div class="result-unregistered-state hidden" id="resultUnregisteredState">
+                        <div class="unregistered-icon-box">
+                            <i class="fa-solid fa-user-xmark text-yellow"></i>
+                        </div>
+                        <h3 class="unregistered-title" id="unregHeading">BIOMETRIC RECORD NOT FOUND</h3>
+                        <p class="unregistered-desc" id="unregMessage">No matching record found in the database. This
+                            individual has not been registered or the biometric signature does not match.</p>
+
+                        <div class="unreg-stats-box">
+                            <div>Highest Match Confidence: <strong id="unregTopScore" class="text-yellow">0.0%</strong>
+                            </div>
+                            <div>Verification Status: <span class="badge badge-red">NOT FOUND</span></div>
+                        </div>
+
+                        <div class="unreg-action-buttons">
+                            <button class="btn btn-primary" id="enrollThisPrintBtn">
+                                <i class="fa-solid fa-user-plus"></i> Enroll This Person Now
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 2: ENROLL NEW USER -->
+        <!-- ============================================================== -->
+        <section class="tab-panel" id="tab-enroll">
+            <div class="enroll-container glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <i class="fa-solid fa-user-plus panel-icon"></i>
+                        <div>
+                            <h2 class="panel-title">Citizen Biometric Enrollment Studio</h2>
+                            <p class="panel-desc">Register a new individual with full profile details and
+                                high-resolution fingerprint scans</p>
+                        </div>
+                    </div>
+                    <span class="badge badge-emerald">DEEP CNN REGISTRATION</span>
+                </div>
+
+                <form id="enrollForm" class="enroll-form" enctype="multipart/form-data">
+                    <div class="form-grid">
+
+                        <!-- Left Column: Personal Information -->
+                        <div class="form-col">
+                            <h3 class="form-section-title"><i class="fa-solid fa-id-card-clip"></i> Personal Information
+                            </h3>
+
+                            <!-- Full Name -->
+                            <div class="form-group">
+                                <label for="enrollName">Full Legal Name <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="fa-solid fa-user"></i>
+                                    <input type="text" id="enrollName" name="name" placeholder="e.g. Johnathan Doe"
+                                        required>
+                                </div>
+                            </div>
+
+                            <!-- Row: Age & Gender -->
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="enrollAge">Age <span class="required">*</span></label>
+                                    <div class="input-icon-wrapper">
+                                        <i class="fa-solid fa-cake-candles"></i>
+                                        <input type="number" id="enrollAge" name="age" min="1" max="120"
+                                            placeholder="e.g. 28" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enrollGender">Gender <span class="required">*</span></label>
+                                    <div class="input-icon-wrapper">
+                                        <i class="fa-solid fa-venus-mars"></i>
+                                        <select id="enrollGender" name="gender" required>
+                                            <option value="" disabled selected>Select Gender</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                            <option value="Non-Binary">Non-Binary</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row: Blood Group & Mobile -->
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="enrollBloodGroup">Blood Group <span class="required">*</span></label>
+                                    <div class="input-icon-wrapper">
+                                        <i class="fa-solid fa-droplet text-red"></i>
+                                        <select id="enrollBloodGroup" name="blood_group" required>
+                                            <option value="" disabled selected>Select Blood Group</option>
+                                            <option value="O+">O Positive (O+)</option>
+                                            <option value="O-">O Negative (O-)</option>
+                                            <option value="A+">A Positive (A+)</option>
+                                            <option value="A-">A Negative (A-)</option>
+                                            <option value="B+">B Positive (B+)</option>
+                                            <option value="B-">B Negative (B-)</option>
+                                            <option value="AB+">AB Positive (AB+)</option>
+                                            <option value="AB-">AB Negative (AB-)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enrollMobile">Mobile Number <span class="required">*</span></label>
+                                    <div class="input-icon-wrapper">
+                                        <i class="fa-solid fa-phone"></i>
+                                        <input type="tel" id="enrollMobile" name="mobile" placeholder="e.g. +1 555-0199"
+                                            required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Emergency Contact -->
+                            <div class="form-group">
+                                <label for="enrollEmergencyContact">🚨 Emergency Contact Number & Name <span
+                                        class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="fa-solid fa-truck-medical text-red"></i>
+                                    <input type="text" id="enrollEmergencyContact" name="emergency_contact"
+                                        placeholder="e.g. +1 (555) 998-0011 (Mary Doe - Mother)" required>
+                                </div>
+                                <small class="input-hint">Include phone number and relationship for emergency
+                                    responders</small>
+                            </div>
+
+                            <!-- Residential Address -->
+                            <div class="form-group">
+                                <label for="enrollAddress">Full Residential Address <span
+                                        class="required">*</span></label>
+                                <div class="input-icon-wrapper textarea-wrapper">
+                                    <i class="fa-solid fa-location-dot"></i>
+                                    <textarea id="enrollAddress" name="address" rows="3"
+                                        placeholder="Street Address, Apt / Suite, City, State, ZIP / Postal Code"
+                                        required></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Security Passcode Authorization -->
+                            <div class="form-group enroll-passcode-box">
+                                <label for="enrollPassword"><i class="fa-solid fa-key text-cyan"></i> Security Passcode
+                                    (Required to Add Person) <span class="required">*</span></label>
+                                <div class="input-icon-wrapper password-wrapper">
+                                    <i class="fa-solid fa-lock"></i>
+                                    <input type="password" id="enrollPassword" name="password"
+                                        placeholder="Enter passcode to add person" required
+                                        autocomplete="current-password">
+                                    <button type="button" class="password-toggle-btn" id="toggleEnrollPasswordBtn"
+                                        title="Toggle password visibility">
+                                        <i class="fa-solid fa-eye" id="toggleEnrollPasswordIcon"></i>
+                                    </button>
+                                </div>
+                                <small class="input-hint">Authorization passcode is required to register a new
+                                    person.</small>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Biometric Scan Upload -->
+                        <div class="form-col">
+                            <h3 class="form-section-title"><i class="fa-solid fa-fingerprint"></i> Biometric Fingerprint
+                                Capture</h3>
+
+                            <div class="enroll-upload-zone" id="enrollDropzone">
+                                <input type="file" id="enrollFingerprintInput" name="fingerprint_images"
+                                    accept="image/*" class="file-input-hidden" multiple required>
+
+                                <div class="enroll-upload-preview" id="enrollPreviewBox">
+                                    <div class="enroll-placeholder" id="enrollPlaceholder">
+                                        <div class="fingerprint-scan-circle">
+                                            <i class="fa-solid fa-fingerprint enroll-icon"></i>
+                                        </div>
+                                        <h4>Upload Fingerprint Scans (1 to 10 Images)</h4>
+                                        <p>Select multiple scans (e.g. Thumb, Index, etc.) or drag & drop</p>
+                                        <span class="file-types-badge">Supports BMP, PNG, JPG, TIF (Up to 10
+                                            scans/person)</span>
+                                    </div>
+                                    <div id="enrollThumbnailsGrid" class="enroll-thumbnails-grid hidden"></div>
+                                </div>
+
+                                <div class="enroll-quality-check hidden" id="enrollQualityCheck">
+                                    <div class="quality-label-row">
+                                        <span><i class="fa-solid fa-circle-check text-emerald"></i> Multi-Scan Quality
+                                            Assessment:</span>
+                                        <strong class="text-emerald" id="enrollQualityStatus">High Fidelity Ridge
+                                            Extraction (96%)</strong>
+                                    </div>
+                                    <div class="quality-bar">
+                                        <div class="quality-bar-fill" style="width: 96%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Storage Notice -->
+                            <div class="info-callout">
+                                <i class="fa-solid fa-shield-halved callout-icon text-cyan"></i>
+                                <div class="callout-text">
+                                    <strong>Automatic CNN Embedding Extraction</strong>
+                                    <p>Upon submission, the CNN extracts a 256-D feature vector, detects minutiae
+                                        bifurcations, and synchronizes the record to MongoDB Atlas.</p>
+                                </div>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="enroll-actions">
+                                <button type="reset" class="btn btn-secondary" id="resetEnrollFormBtn">
+                                    <i class="fa-solid fa-xmark"></i> Clear Form
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-glow" id="submitEnrollBtn">
+                                    <i class="fa-solid fa-fingerprint"></i> Complete Enrollment
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 3: CITIZEN DIRECTORY -->
+        <!-- ============================================================== -->
+        <section class="tab-panel" id="tab-directory">
+            <div class="directory-container glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <i class="fa-solid fa-address-book panel-icon"></i>
+                        <div>
+                            <h2 class="panel-title">Registered Citizen Biometric Directory</h2>
+                            <p class="panel-desc">Browse, search, and manage all enrolled biometric profiles in the
+                                database</p>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Controls -->
+                    <div class="directory-controls">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="directorySearchInput"
+                                placeholder="Search by name, phone, blood group, address...">
+                        </div>
+                        <button class="btn btn-secondary" id="refreshDirectoryBtn" title="Refresh Directory">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Blood Group Quick Filter Chips -->
+                <div class="blood-filter-row">
+                    <span class="filter-label">Filter Blood Group:</span>
+                    <button class="filter-chip active" data-filter="all">All</button>
+                    <button class="filter-chip" data-filter="O+">O+</button>
+                    <button class="filter-chip" data-filter="O-">O-</button>
+                    <button class="filter-chip" data-filter="A+">A+</button>
+                    <button class="filter-chip" data-filter="A-">A-</button>
+                    <button class="filter-chip" data-filter="B+">B+</button>
+                    <button class="filter-chip" data-filter="B-">B-</button>
+                    <button class="filter-chip" data-filter="AB+">AB+</button>
+                    <button class="filter-chip" data-filter="AB-">AB-</button>
+                </div>
+
+                <!-- Directory Grid Cards -->
+                <div class="directory-grid" id="directoryGrid">
+                    <!-- Dynamic Citizen Cards Loaded Here -->
+                    <div class="directory-loading">
+                        <div class="radar-spinner-sm"></div>
+                        <p>Loading biometric records...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 4: DEEP CNN ARCHITECTURE & VISUALIZER -->
+        <!-- ============================================================== -->
+        <section class="tab-panel" id="tab-cnn">
+            <div class="cnn-container glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <i class="fa-solid fa-network-wired panel-icon"></i>
+                        <div>
+                            <h2 class="panel-title">Deep CNN Biometric Architecture & Feature Visualizer</h2>
+                            <p class="panel-desc">Inspect multi-layer convolutional feature representations & latent
+                                space projections</p>
+                        </div>
+                    </div>
+                    <span class="badge badge-purple">KERAS / TENSORFLOW 2.21</span>
+                </div>
+
+                <!-- Architecture Summary Cards -->
+                <div class="cnn-pipeline-flow">
+                    <div class="pipeline-step">
+                        <div class="step-badge">INPUT</div>
+                        <h4>Ridge Preprocessing</h4>
+                        <p>128x128 CLAHE + Gabor Filtered Grayscale</p>
+                    </div>
+                    <div class="pipeline-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+
+                    <div class="pipeline-step">
+                        <div class="step-badge">CONV 1-2</div>
+                        <h4>Minutiae Kernels</h4>
+                        <p>32 & 64 Filter Banks (Bifurcations & Endings)</p>
+                    </div>
+                    <div class="pipeline-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+
+                    <div class="pipeline-step">
+                        <div class="step-badge">CONV 3-4</div>
+                        <h4>Core & Delta Patterns</h4>
+                        <p>128 & 256 Filter Banks with BatchNorm & GAP</p>
+                    </div>
+                    <div class="pipeline-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+
+                    <div class="pipeline-step highlight-step">
+                        <div class="step-badge">DENSE L2</div>
+                        <h4>256-D Latent Space</h4>
+                        <p>Unit-Norm Cosine Distance Vector Projection</p>
+                    </div>
+                </div>
+
+                <!-- Live Feature Maps Viewer -->
+                <div class="feature-maps-section">
+                    <div class="section-sub-header">
+                        <h3><i class="fa-solid fa-eye text-cyan"></i> Intermediate Activation Feature Maps</h3>
+                        <span class="text-muted">Generated during recent scan</span>
+                    </div>
+
+                    <div class="feature-maps-grid" id="featureMapsGrid">
+                        <div class="empty-feature-maps">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <p>Perform a scan in the <strong>Scan & Identify</strong> tab to inspect live multi-layer
+                                CNN activations.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 5: DATABASE & .ENV SETTINGS -->
+        <!-- ============================================================== -->
+        <section class="tab-panel" id="tab-config">
+            <div class="config-container glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <i class="fa-solid fa-database panel-icon"></i>
+                        <div>
+                            <h2 class="panel-title">MongoDB Atlas & Environment Configuration</h2>
+                            <p class="panel-desc">Manage connection settings, environment variables (.env), and
+                                resilience metrics</p>
+                        </div>
+                    </div>
+                    <span class="badge badge-cyan" id="configStatusBadge">ATLAS CONNECTED</span>
+                </div>
+
+                <div class="config-grid">
+
+                    <!-- DB Status Card -->
+                    <div class="config-card">
+                        <h3><i class="fa-solid fa-server text-cyan"></i> Active Database Status</h3>
+                        <div class="config-info-list">
+                            <div class="config-row">
+                                <span class="config-label">Database Type:</span>
+                                <strong id="cfgDbType">MongoDB Atlas</strong>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-label">Database Name:</span>
+                                <code id="cfgDbName">biometric_fingerprint_db</code>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-label">Active Collection:</span>
+                                <code>users</code>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-label">Connection Message:</span>
+                                <span id="cfgStatusMsg" class="text-emerald">Operating normally</span>
+                            </div>
+                            <div class="config-row">
+                                <span class="config-label">Total Enrolled Records:</span>
+                                <strong id="cfgUserCount">5 Profiles</strong>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <!-- Dataset Batch Importer Card -->
+                    <div class="config-card full-width-card">
+                        <h3><i class="fa-solid fa-folder-tree text-emerald"></i> Batch Multi-Fingerprint Dataset
+                            Importer</h3>
+                        <p class="config-guide-text">
+                            Have a dataset of images (up to 10 scans/person)? Place folders into
+                            <code>dataset/&lt;Person_Name&gt;/*.bmp</code> and import them directly into MongoDB Atlas
+                            with 1 click.
+                        </p>
+                        <div class="dataset-import-action-row">
+                            <div class="dataset-path-pill">
+                                <i class="fa-solid fa-folder-open"></i>
+                                <span>Root: <code>dataset/&lt;Person_Name&gt;/</code> (Supports 10 scans per
+                                    person)</span>
+                            </div>
+                            <button class="btn btn-primary" id="btnRunDatasetImport">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Import Dataset into MongoDB Atlas
+                            </button>
+                        </div>
+                        <div id="datasetImportStatus" class="dataset-import-status hidden"></div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal: Citizen ID Card Print Preview -->
+    <div class="modal-backdrop hidden" id="idCardModal">
+        <div class="modal-card glass-panel print-id-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-id-badge text-cyan"></i> Citizen Biometric ID Card</h3>
+                <button class="modal-close-btn" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="id-badge-printable" id="printableIdBadge">
+                <div class="badge-head">
+                    <div class="badge-org-title">NATIONAL BIOMETRIC IDENTIFICATION</div>
+                    <div class="badge-security-chip"><i class="fa-solid fa-microchip"></i></div>
+                </div>
+                <div class="badge-body">
+                    <div class="badge-photo-col">
+                        <div class="badge-photo-frame">
+                            <i class="fa-solid fa-user badge-default-avatar"></i>
+                        </div>
+                        <div class="badge-blood-tag" id="modalBloodGroup">O+</div>
+                    </div>
+                    <div class="badge-info-col">
+                        <h2 class="badge-name" id="modalName">Alexander Vance</h2>
+                        <div class="badge-sub-detail" id="modalMeta">Age: 34 | Gender: Male</div>
+
+                        <div class="badge-line"><i class="fa-solid fa-phone"></i> <span id="modalMobile">+1
+                                555-234-8901</span></div>
+                        <div class="badge-line emergency-line"><i class="fa-solid fa-truck-medical text-red"></i> <span
+                                id="modalEmergency">Emergency: +1 555-902-1144</span></div>
+                        <div class="badge-line address-line"><i class="fa-solid fa-location-dot"></i> <span
+                                id="modalAddress">San Francisco, CA</span></div>
+                    </div>
+                </div>
+                <div class="badge-footer">
+                    <div class="badge-barcode">||| | |||| | ||| ||||| || ||| ||||</div>
+                    <div class="badge-hash" id="modalHash">CNN HASH: 8f72a910...</div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="closeModalBtn2">Close</button>
+                <button class="btn btn-primary btn-glow" onclick="window.print()">
+                    <i class="fa-solid fa-print"></i> Print / Save PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
