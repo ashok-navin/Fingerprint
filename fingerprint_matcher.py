@@ -7,7 +7,7 @@ from PIL import Image
 from pathlib import Path
 from cnn_model import get_cnn
 from database import db
-from config import CNN_IMAGE_SIZE, MATCH_THRESHOLD, BASE_DIR
+from config import CNN_IMAGE_SIZE, MATCH_THRESHOLD, BASE_DIR, STORAGE_DIR
 
 # Restrict OpenCV memory and thread pool
 try:
@@ -164,7 +164,9 @@ class FingerprintMatcher:
         and Aligned Ridge Correlation.
         """
         try:
-            full_path = BASE_DIR / enrolled_fp_path.lstrip('/')
+            full_path = STORAGE_DIR / enrolled_fp_path.lstrip('/')
+            if not full_path.exists():
+                full_path = BASE_DIR / enrolled_fp_path.lstrip('/')
             if not full_path.exists():
                 return 0.0, 0
             

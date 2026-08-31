@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 from bson import ObjectId
 from pymongo import MongoClient, errors
-from config import MONGODB_URI, DB_NAME, COLLECTION_NAME, BASE_DIR
+from config import MONGODB_URI, DB_NAME, COLLECTION_NAME, BASE_DIR, STORAGE_DIR
 
 class BiometricDatabase:
     def __init__(self):
@@ -12,31 +12,34 @@ class BiometricDatabase:
         self.db = None
         self.collection = None
         self.status_message = ""
-        self.sqlite_path = BASE_DIR / "local_biometric.db"
+        self.sqlite_path = STORAGE_DIR / "local_biometric.db"
         
         self._init_sqlite()
         self._init_mongodb()
 
     def _init_sqlite(self):
         """Initialize local SQLite database for fallback and local sync."""
-        with sqlite3.connect(self.sqlite_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    mobile TEXT NOT NULL,
-                    blood_group TEXT NOT NULL,
-                    emergency_contact TEXT NOT NULL,
-                    address TEXT NOT NULL,
-                    age INTEGER NOT NULL,
-                    gender TEXT NOT NULL,
-                    fingerprint_path TEXT,
-                    embeddings_json TEXT,
-                    created_at TEXT
-                )
-            ''')
-            conn.commit()
+        try:
+            with sqlite3.connect(self.sqlite_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        mobile TEXT NOT NULL,
+                        blood_group TEXT NOT NULL,
+                        emergency_contact TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        age INTEGER NOT NULL,
+                        gender TEXT NOT NULL,
+                        fingerprint_path TEXT,
+                        embeddings_json TEXT,
+                        created_at TEXT
+                    )
+                ''')
+                conn.commit()
+        except Exception as e:
+            print(f"[Database] SQLite local cache notice: {e}")
 
     def _init_mongodb(self):
         """Attempt connection to MongoDB Atlas."""
