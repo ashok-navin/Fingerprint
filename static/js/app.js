@@ -378,6 +378,20 @@ async function executeScan() {
             });
         }
 
+        if (!response.ok) {
+            let errorMsg = `Server error (${response.status})`;
+            try {
+                const errData = await response.json();
+                if (errData && errData.error) errorMsg = errData.error;
+            } catch (_) {
+                try {
+                    const txt = await response.text();
+                    if (txt) errorMsg = txt.substring(0, 100);
+                } catch (_) {}
+            }
+            throw new Error(errorMsg);
+        }
+
         const data = await response.json();
         
         // Brief delay to let the scanner animation feel authentic and futuristic
@@ -422,7 +436,7 @@ async function executeScan() {
         dom.scannerViewport.classList.remove('scanning');
         dom.startScanBtn.disabled = false;
         showResultState('empty');
-        showToast("Network or Server error during scan", "error");
+        showToast(err.message || "Network or Server error during scan", "error");
     }
 }
 

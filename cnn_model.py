@@ -123,37 +123,46 @@ class FingerprintCNN:
 
     def get_intermediate_feature_maps(self, preprocessed_image):
         """
-        Returns normalized 2D feature map slices for frontend visualization.
+        Returns normalized 2D feature map slices for frontend visualization (downsampled for lightweight transfer).
         """
         if self.feature_extractor is None:
             return {}
         
-        if len(preprocessed_image.shape) == 2:
-            img = np.expand_dims(preprocessed_image, axis=-1)
-        else:
-            img = preprocessed_image
-        
-        batch = np.expand_dims(img, axis=0).astype(np.float32)
-        activations = self.feature_extractor(batch, training=False)
-        
-        maps = {}
-        layer_tags = ["Layer 1 (Ridge Filters)", "Layer 2 (Minutiae & Bifurcations)", "Layer 3 (Core & Delta Patterns)", "Layer 4 (Deep Fingerprint Vectors)"]
-        
-        for i, act in enumerate(activations):
-            act_np = act.numpy()[0] # shape (H, W, C)
-            selected_slices = []
-            num_channels = min(4, act_np.shape[-1])
-            for ch in range(num_channels):
-                ch_map = act_np[:, :, ch]
-                min_v, max_v = ch_map.min(), ch_map.max()
-                if max_v > min_v:
-                    norm_map = ((ch_map - min_v) / (max_v - min_v) * 255).astype(np.uint8)
-                else:
-                    norm_map = np.zeros_like(ch_map, dtype=np.uint8)
-                selected_slices.append(norm_map.tolist())
-            maps[layer_tags[i]] = selected_slices
+        try:
+            if len(preprocessed_image.shape) == 2:
+                img = np.expand_dims(preprocessed_image, axis=-1)
+            else:
+                img = preprocessed_image
+            
+            batch = np.expand_dims(img, axis=0).astype(np.float32)
+            activations = self.feature_extractor(batch, training=False)
+            
+            maps = {}
+            layer_tags = ["Layer 1 (Ridge Filters)", "Layer 2 (Minutiae & Bifurcations)", "Layer 3 (Core & Delta Patterns)", "Layer 4 (Deep Fingerprint Vectors)"]
+            
+            for i, act in enumerate(activations):
+                act_np = act.numpy()[0] # shape (H, W, C)
+                selected_slices = []
+                num_channels = min(4, act_np.shape[-1])
+                for ch in range(num_channels):
+                    ch_map = act_np[:, :, ch]
+                    # Downsample if larger than 32x32 to minimize payload and browser render time
+                    if ch_map.shape[0] > 32 or ch_map.shape[1] > 32:
+                        step_y = max(1, ch_map.shape[0] // 32)
+                        step_x = max(1, ch_map.shape[1] // 32)
+                        ch_map = ch_map[::step_y, ::step_x]
+                    
+                    min_v, max_v = float(ch_map.min()), float(ch_map.max())
+                    if max_v > min_v:
+                        norm_map = ((ch_map - min_v) / (max_v - min_v) * 255.0).astype(np.uint8)
+                    else:
+                        norm_map = np.zeros_like(ch_map, dtype=np.uint8)
+                    selected_slices.append(norm_map.tolist())
+                maps[layer_tags[i]] = selected_slices
 
-        return maps
+            return maps
+        except Exception:
+            return {}
 
 # Singleton getter
 def get_cnn():
