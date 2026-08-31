@@ -1,4 +1,5 @@
 import io
+import gc
 import base64
 import cv2
 import numpy as np
@@ -7,6 +8,12 @@ from pathlib import Path
 from cnn_model import get_cnn
 from database import db
 from config import CNN_IMAGE_SIZE, MATCH_THRESHOLD, BASE_DIR
+
+# Restrict OpenCV memory and thread pool
+try:
+    cv2.setNumThreads(1)
+except Exception:
+    pass
 
 class FingerprintMatcher:
     def __init__(self):

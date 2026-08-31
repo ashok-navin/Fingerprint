@@ -1,12 +1,28 @@
 import os
+import gc
+
+# Restrict TensorFlow thread pools and memory allocations to bare minimum for low RAM (512MB)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_NUM_INTEROP_THREADS'] = '1'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models, regularizers
 from config import CNN_IMAGE_SIZE, EMBEDDING_DIM, BASE_DIR
 
-# Suppress verbose TF logs
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# Set low-footprint single-threaded execution in TensorFlow
+try:
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+except Exception:
+    pass
 
 WEIGHTS_DIR = BASE_DIR / 'models'
 WEIGHTS_DIR.mkdir(exist_ok=True)
