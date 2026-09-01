@@ -68,6 +68,26 @@ def get_db_status():
     status = db.get_status()
     return jsonify(status)
 
+@app.route('/api/verify-auth', methods=['POST'])
+def verify_auth():
+    """Validates security passcode for accessing restricted tabs (Enrollment, Directory, Database)."""
+    data = request.get_json(silent=True) or {}
+    password = data.get('password', '').strip()
+    if not password:
+        password = request.form.get('password', '').strip()
+    
+    if password and password == ENROLL_PASSWORD:
+        return jsonify({
+            "success": True,
+            "authorized": True,
+            "message": "Security passcode verified successfully."
+        })
+    return jsonify({
+        "success": False,
+        "authorized": False,
+        "error": "Authentication Failed: Incorrect security passcode."
+    }), 403
+
 @app.route('/api/users', methods=['GET'])
 def list_users():
     users = db.get_all_users()
