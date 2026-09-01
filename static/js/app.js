@@ -208,8 +208,6 @@ function initTabs() {
 
             if (target === 'tab-directory') {
                 loadDirectory();
-            } else if (target === 'tab-config') {
-                fetchDbStatus();
             }
         });
     });
@@ -984,18 +982,22 @@ async function fetchDbStatus() {
         const res = await fetch('/api/db-status');
         const data = await res.json();
 
-        dom.dbStatusText.textContent = data.atlas_connected ? "MongoDB Atlas Active" : "Local Resilient Mode";
-        dom.dbIndicator.className = `status-indicator ${data.atlas_connected ? 'live' : 'warning'}`;
+        if (dom.dbStatusText) dom.dbStatusText.textContent = data.atlas_connected ? "MongoDB Atlas Active" : "Local Resilient Mode";
+        if (dom.dbIndicator) dom.dbIndicator.className = `status-indicator ${data.atlas_connected ? 'live' : 'warning'}`;
+        if (dom.totalUsersCount) dom.totalUsersCount.textContent = data.total_users;
 
-        dom.cfgDbType.textContent = data.database_type;
-        dom.cfgDbName.textContent = data.db_name;
-        dom.cfgStatusMsg.textContent = data.status_message;
-        dom.cfgStatusMsg.className = data.atlas_connected ? "text-emerald" : "text-yellow";
-        dom.cfgUserCount.textContent = `${data.total_users} Profiles Enrolled`;
-        dom.totalUsersCount.textContent = data.total_users;
+        if (dom.cfgDbType) dom.cfgDbType.textContent = data.database_type;
+        if (dom.cfgDbName) dom.cfgDbName.textContent = data.db_name;
+        if (dom.cfgStatusMsg) {
+            dom.cfgStatusMsg.textContent = data.status_message;
+            dom.cfgStatusMsg.className = data.atlas_connected ? "text-emerald" : "text-yellow";
+        }
+        if (dom.cfgUserCount) dom.cfgUserCount.textContent = `${data.total_users} Profiles Enrolled`;
 
-        dom.configStatusBadge.textContent = data.atlas_connected ? "ATLAS ONLINE" : "LOCAL RESILIENT FALLBACK";
-        dom.configStatusBadge.className = `badge ${data.atlas_connected ? 'badge-cyan' : 'badge-red'}`;
+        if (dom.configStatusBadge) {
+            dom.configStatusBadge.textContent = data.atlas_connected ? "ATLAS ONLINE" : "LOCAL RESILIENT FALLBACK";
+            dom.configStatusBadge.className = `badge ${data.atlas_connected ? 'badge-cyan' : 'badge-red'}`;
+        }
     } catch (e) {
         console.error("DB status fetch failed", e);
     }

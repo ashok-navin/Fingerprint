@@ -74,10 +74,6 @@
                     <i class="fa-solid fa-network-wired"></i>
                     <span>CNN Visualizer</span>
                 </button>
-                <button class="tab-btn" data-tab="tab-config" id="tabBtnConfig">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>Database & .env</span>
-                </button>
             </div>
         </nav>
     </header>
@@ -665,80 +661,6 @@
                                 CNN activations.</p>
                         </div>
                     </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ============================================================== -->
-        <!-- TAB 5: DATABASE & .ENV SETTINGS -->
-        <!-- ============================================================== -->
-        <section class="tab-panel" id="tab-config">
-            <div class="config-container glass-panel">
-                <div class="panel-header">
-                    <div class="panel-title-group">
-                        <i class="fa-solid fa-database panel-icon"></i>
-                        <div>
-                            <h2 class="panel-title">MongoDB Atlas & Environment Configuration</h2>
-                            <p class="panel-desc">Manage connection settings, environment variables (.env), and
-                                resilience metrics</p>
-                        </div>
-                    </div>
-                    <span class="badge badge-cyan" id="configStatusBadge">ATLAS CONNECTED</span>
-                </div>
-
-                <div class="config-grid">
-
-                    <!-- DB Status Card -->
-                    <div class="config-card">
-                        <h3><i class="fa-solid fa-server text-cyan"></i> Active Database Status</h3>
-                        <div class="config-info-list">
-                            <div class="config-row">
-                                <span class="config-label">Database Type:</span>
-                                <strong id="cfgDbType">MongoDB Atlas</strong>
-                            </div>
-                            <div class="config-row">
-                                <span class="config-label">Database Name:</span>
-                                <code id="cfgDbName">biometric_fingerprint_db</code>
-                            </div>
-                            <div class="config-row">
-                                <span class="config-label">Active Collection:</span>
-                                <code>users</code>
-                            </div>
-                            <div class="config-row">
-                                <span class="config-label">Connection Message:</span>
-                                <span id="cfgStatusMsg" class="text-emerald">Operating normally</span>
-                            </div>
-                            <div class="config-row">
-                                <span class="config-label">Total Enrolled Records:</span>
-                                <strong id="cfgUserCount">5 Profiles</strong>
-                            </div>
-                        </div>
-                    </div>
-
-
-
-                    <!-- Dataset Batch Importer Card -->
-                    <div class="config-card full-width-card">
-                        <h3><i class="fa-solid fa-folder-tree text-emerald"></i> Batch Multi-Fingerprint Dataset
-                            Importer</h3>
-                        <p class="config-guide-text">
-                            Have a dataset of images (up to 10 scans/person)? Place folders into
-                            <code>dataset/&lt;Person_Name&gt;/*.bmp</code> and import them directly into MongoDB Atlas
-                            with 1 click.
-                        </p>
-                        <div class="dataset-import-action-row">
-                            <div class="dataset-path-pill">
-                                <i class="fa-solid fa-folder-open"></i>
-                                <span>Root: <code>dataset/&lt;Person_Name&gt;/</code> (Supports 10 scans per
-                                    person)</span>
-                            </div>
-                            <button class="btn btn-primary" id="btnRunDatasetImport">
-                                <i class="fa-solid fa-cloud-arrow-up"></i> Import Dataset into MongoDB Atlas
-                            </button>
-                        </div>
-                        <div id="datasetImportStatus" class="dataset-import-status hidden"></div>
-                    </div>
-
                 </div>
             </div>
         </section>
