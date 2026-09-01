@@ -169,21 +169,6 @@ const dom = {
     cfgUserCount: document.getElementById('cfgUserCount'),
     configStatusBadge: document.getElementById('configStatusBadge'),
 
-    // Security Passcode Modal & Auth Controls
-    authLockToggleBtn: document.getElementById('authLockToggleBtn'),
-    authLockIcon: document.getElementById('authLockIcon'),
-    securityAuthModal: document.getElementById('securityAuthModal'),
-    securityAuthCard: document.querySelector('.security-auth-card'),
-    securityAuthForm: document.getElementById('securityAuthForm'),
-    securityAuthInput: document.getElementById('securityAuthInput'),
-    securityAuthError: document.getElementById('securityAuthError'),
-    cancelSecurityAuthBtn: document.getElementById('cancelSecurityAuthBtn'),
-    submitSecurityAuthBtn: document.getElementById('submitSecurityAuthBtn'),
-    toggleSecurityAuthPassBtn: document.getElementById('toggleSecurityAuthPassBtn'),
-    toggleSecurityAuthPassIcon: document.getElementById('toggleSecurityAuthPassIcon'),
-    securityModalTitle: document.getElementById('securityModalTitle'),
-    securityModalSubtitle: document.getElementById('securityModalSubtitle'),
-
     // ID Modal
     idCardModal: document.getElementById('idCardModal'),
     closeModalBtn: document.getElementById('closeModalBtn'),
@@ -198,82 +183,9 @@ const dom = {
 };
 
 // ==========================================
-// 4. SECURITY & AUTHENTICATION STATE
-// ==========================================
-// Ephemeral in-memory security state: automatically resets on page refresh or navigation change
-const PROTECTED_TABS = ['tab-enroll', 'tab-directory', 'tab-config'];
-let activeAuthorizedTab = null;
-let currentAuthPasscode = '';
-let pendingProtectedTab = null;
-
-function isSystemAuthenticated(tabId) {
-    // Only authenticated if this exact tab was authorized
-    return activeAuthorizedTab === tabId && !!currentAuthPasscode;
-}
-
-function getStoredAuthPasscode() {
-    return currentAuthPasscode;
-}
-
-function setSystemAuthenticated(tabId, passcode) {
-    activeAuthorizedTab = tabId;
-    currentAuthPasscode = passcode;
-    updateAuthUiState(true, tabId);
-    const passInput = document.getElementById('enrollPassword');
-    if (passInput) passInput.value = passcode;
-}
-
-function lockSystem(showNotification = true) {
-    activeAuthorizedTab = null;
-    currentAuthPasscode = '';
-    updateAuthUiState(false);
-    const passInput = document.getElementById('enrollPassword');
-    if (passInput) passInput.value = '';
-    
-    // If currently on a protected tab and user clicked manual lock, switch back to public scanner
-    const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
-    if (PROTECTED_TABS.includes(activeTab) && showNotification) {
-        dom.tabBtns.forEach(b => b.classList.remove('active'));
-        dom.tabPanels.forEach(p => p.classList.remove('active'));
-        const scanBtn = document.getElementById('tabBtnScan');
-        const scanPanel = document.getElementById('tab-scan');
-        if (scanBtn) scanBtn.classList.add('active');
-        if (scanPanel) scanPanel.classList.add('active');
-    }
-    if (showNotification) {
-        showToast("System Locked: Restricted Access Enabled", "info");
-    }
-}
-
-function updateAuthUiState(isAuth, unlockedTabId = null) {
-    if (dom.authLockIcon) {
-        dom.authLockIcon.className = isAuth ? 'fa-solid fa-lock-open' : 'fa-solid fa-lock';
-    }
-    if (dom.authLockToggleBtn) {
-        dom.authLockToggleBtn.classList.toggle('unlocked', isAuth);
-        dom.authLockToggleBtn.title = isAuth ? 'Access Active (Click to Lock)' : 'System Locked (Click to Unlock)';
-    }
-    
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        const tabId = btn.dataset.tab;
-        if (PROTECTED_TABS.includes(tabId)) {
-            const isThisTabUnlocked = isAuth && tabId === unlockedTabId;
-            btn.classList.toggle('unlocked', isThisTabUnlocked);
-            const lockBadge = btn.querySelector('.tab-lock-badge');
-            if (lockBadge) {
-                lockBadge.className = isThisTabUnlocked ? 'fa-solid fa-lock-open tab-lock-badge' : 'fa-solid fa-lock tab-lock-badge';
-            }
-        }
-    });
-}
-
-// ==========================================
-// 5. INITIALIZATION
+// 4. INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Always start in locked state on page load / refresh
-    lockSystem(false);
-    
     initTabs();
     initSoundToggle();
     initQuickSamples();
@@ -282,33 +194,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initDirectory();
     fetchDbStatus();
     initModalEvents();
-    initSecurityAuthEvents();
 });
 
-// Tab navigation: automatically locks when switching to another navigation option
+// Tab navigation
 function initTabs() {
     dom.tabBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', () => {
             const target = btn.dataset.tab;
-            const currentActive = document.querySelector('.tab-btn.active')?.dataset?.tab;
-
-            // If clicking the same active tab that is already open, do nothing
-            if (target === currentActive) return;
-
-            // If clicking a protected tab and not authorized for this specific tab:
-            if (PROTECTED_TABS.includes(target) && !isSystemAuthenticated(target)) {
-                e.preventDefault();
-                // Automatically lock previous tab session on navigation change
-                lockSystem(false);
-                openSecurityAuthModal(target);
-                return;
-            }
-
-            // If navigating away to any other tab (e.g. Scan or CNN), automatically lock immediately
-            if (currentActive !== target) {
-                lockSystem(false);
-            }
-
             dom.tabBtns.forEach(b => b.classList.remove('active'));
             dom.tabPanels.forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
@@ -1041,154 +933,6 @@ function openIdModal(user) {
     dom.modalAddress.textContent = user.address;
     dom.modalHash.textContent = `CNN EMBEDDING HASH: #${(user.id || '').substring(0, 16)}`;
     dom.idCardModal.classList.remove('hidden');
-}
-
-// ==========================================
-// 13. SECURITY PASSCODE AUTHENTICATION GATE
-// ==========================================
-function initSecurityAuthEvents() {
-    if (dom.authLockToggleBtn) {
-        dom.authLockToggleBtn.addEventListener('click', () => {
-            if (isSystemAuthenticated()) {
-                lockSystem();
-            } else {
-                openSecurityAuthModal('tab-directory');
-            }
-        });
-    }
-
-    if (dom.cancelSecurityAuthBtn) {
-        dom.cancelSecurityAuthBtn.addEventListener('click', closeSecurityAuthModal);
-    }
-
-    if (dom.securityAuthModal) {
-        dom.securityAuthModal.addEventListener('click', (e) => {
-            if (e.target === dom.securityAuthModal) closeSecurityAuthModal();
-        });
-    }
-
-    // Toggle password visibility in auth modal
-    if (dom.toggleSecurityAuthPassBtn && dom.securityAuthInput) {
-        dom.toggleSecurityAuthPassBtn.addEventListener('click', () => {
-            const isPass = dom.securityAuthInput.type === 'password';
-            dom.securityAuthInput.type = isPass ? 'text' : 'password';
-            if (dom.toggleSecurityAuthPassIcon) {
-                dom.toggleSecurityAuthPassIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-            }
-        });
-    }
-
-    // Submit passcode form
-    if (dom.securityAuthForm) {
-        dom.securityAuthForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const passcode = dom.securityAuthInput.value.trim();
-            if (!passcode) return;
-
-            const submitBtn = dom.submitSecurityAuthBtn;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
-            if (dom.securityAuthError) dom.securityAuthError.classList.add('hidden');
-
-            try {
-                const res = await fetch('/api/verify-auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: passcode })
-                });
-                const data = await res.json();
-
-                if (res.ok && data.success && data.authorized) {
-                    audio.playSuccessChime();
-                    const targetToOpen = pendingProtectedTab || 'tab-directory';
-                    setSystemAuthenticated(targetToOpen, passcode);
-                    closeSecurityAuthModal();
-
-                    // Activate the authorized tab directly
-                    dom.tabBtns.forEach(b => b.classList.remove('active'));
-                    dom.tabPanels.forEach(p => p.classList.remove('active'));
-                    const targetBtn = document.querySelector(`.tab-btn[data-tab="${targetToOpen}"]`);
-                    const targetPanel = document.getElementById(targetToOpen);
-                    if (targetBtn) targetBtn.classList.add('active');
-                    if (targetPanel) targetPanel.classList.add('active');
-
-                    if (targetToOpen === 'tab-directory') {
-                        loadDirectory();
-                    } else if (targetToOpen === 'tab-config') {
-                        fetchDbStatus();
-                    }
-
-                    showToast(`Access Granted: Authorized for ${targetBtn?.innerText?.trim() || 'Section'}`, "success");
-                } else {
-                    audio.playWarningTone();
-                    if (dom.securityAuthCard) {
-                        dom.securityAuthCard.classList.remove('shake');
-                        void dom.securityAuthCard.offsetWidth; // Trigger reflow
-                        dom.securityAuthCard.classList.add('shake');
-                    }
-                    if (dom.securityAuthError) {
-                        dom.securityAuthError.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.error || 'Incorrect security passcode. Access Denied.'}`;
-                        dom.securityAuthError.classList.remove('hidden');
-                    }
-                    dom.securityAuthInput.focus();
-                    dom.securityAuthInput.select();
-                }
-            } catch (err) {
-                audio.playWarningTone();
-                if (dom.securityAuthError) {
-                    dom.securityAuthError.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Server verification error. Please try again.';
-                    dom.securityAuthError.classList.remove('hidden');
-                }
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> Authorize & Access';
-            }
-        });
-    }
-}
-
-function openSecurityAuthModal(targetTab) {
-    pendingProtectedTab = targetTab;
-    
-    const titles = {
-        'tab-enroll': { 
-            title: 'Citizen Enrollment Authorization', 
-            sub: 'Enter security passcode to enroll new citizens & extract multi-scan CNN embeddings.' 
-        },
-        'tab-directory': { 
-            title: 'Citizen Biometric Directory Authorization', 
-            sub: 'Enter security passcode to browse, search, and manage registered biometric citizen profiles.' 
-        },
-        'tab-config': { 
-            title: 'Database & Environment Settings', 
-            sub: 'Enter security passcode to inspect database connection and run batch dataset imports.' 
-        }
-    };
-
-    const meta = titles[targetTab] || { 
-        title: 'Administrator Authorization Required', 
-        sub: 'Enter the security passcode to access restricted administrative controls.' 
-    };
-
-    if (dom.securityModalTitle) dom.securityModalTitle.textContent = meta.title;
-    if (dom.securityModalSubtitle) dom.securityModalSubtitle.textContent = meta.sub;
-    if (dom.securityAuthError) {
-        dom.securityAuthError.textContent = '';
-        dom.securityAuthError.classList.add('hidden');
-    }
-    if (dom.securityAuthInput) {
-        dom.securityAuthInput.value = '';
-    }
-
-    dom.securityAuthModal.classList.remove('hidden');
-    setTimeout(() => {
-        if (dom.securityAuthInput) dom.securityAuthInput.focus();
-    }, 120);
-}
-
-function closeSecurityAuthModal() {
-    dom.securityAuthModal.classList.add('hidden');
-    pendingProtectedTab = null;
 }
 
 // ==========================================
