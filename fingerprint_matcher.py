@@ -43,9 +43,21 @@ class FingerprintMatcher:
         """
         img_gray = None
         if isinstance(image_input, (str, Path)):
-            img_bgr = cv2.imread(str(image_input))
-            if img_bgr is not None:
-                img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+            str_inp = str(image_input)
+            if str_inp.startswith('data:image/'):
+                try:
+                    raw_b64 = str_inp.split(',', 1)[1] if ',' in str_inp else str_inp
+                    img_bytes = base64.b64decode(raw_b64)
+                    nparr = np.frombuffer(img_bytes, np.uint8)
+                    img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    if img_bgr is not None:
+                        img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+                except Exception:
+                    img_gray = None
+            else:
+                img_bgr = cv2.imread(str_inp)
+                if img_bgr is not None:
+                    img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         elif isinstance(image_input, bytes):
             nparr = np.frombuffer(image_input, np.uint8)
             img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -157,21 +169,36 @@ class FingerprintMatcher:
         similarity = float(np.dot(a, b) / (norm_a * norm_b))
         return max(0.0, min(1.0, similarity))
 
-    def compute_direct_image_match(self, qry_img_enhanced, enrolled_fp_path):
+    def compute_direct_image_match(self, qry_img_enhanced, enrolled_image_or_path):
         """
-        Compares query enhanced image with enrolled fingerprint file using
+        Compares query enhanced image with enrolled fingerprint (base64 or file) using
         High-Precision SIFT + ORB with RANSAC Partial Affine Geometric Verification
         and Aligned Ridge Correlation.
         """
         try:
-            full_path = STORAGE_DIR / enrolled_fp_path.lstrip('/')
-            if not full_path.exists():
-                full_path = BASE_DIR / enrolled_fp_path.lstrip('/')
-            if not full_path.exists():
-                return 0.0, 0
+            if not enrolled_image_or_path:
+                return None, 0
+
+            r_clahe = None
+            if isinstance(enrolled_image_or_path, str) and enrolled_image_or_path.startswith('data:image/'):
+                _, r_clahe, _, _ = self.preprocess_image(enrolled_image_or_path)
+            elif isinstance(enrolled_image_or_path, bytes):
+                _, r_clahe, _, _ = self.preprocess_image(enrolled_image_or_path)
+            else:
+                str_p = str(enrolled_image_or_path).lstrip('/')
+                full_path = STORAGE_DIR / str_p
+                if not full_path.exists():
+                    full_path = BASE_DIR / str_p
+                if not full_path.exists():
+                    full_path = BASE_DIR / 'uploads' / 'fingerprints' / Path(str_p).name
+                if not full_path.exists():
+                    full_path = BASE_DIR / 'uploads' / 'samples' / Path(str_p).name
+                if full_path.exists():
+                    _, r_clahe, _, _ = self.preprocess_image(full_path)
+
+            if r_clahe is None:
+                return None, 0
             
-            # Use identical preprocessing for the enrolled reference print
-            _, r_clahe, _, _ = self.preprocess_image(full_path)
             q_clahe = qry_img_enhanced
             
             # 1. SIFT Minutiae Detection & Matching
@@ -183,18 +210,18 @@ class FingerprintMatcher:
                 kp_q, des_q = self.sift.detectAndCompute(q_clahe, None)
                 kp_r, des_r = self.sift.detectAndCompute(r_clahe, None)
                 
-                if des_q is not None and des_r is not None and len(des_q) >= 6 and len(des_r) >= 6:
+                if des_q is not None and des_r is not None and len(des_q) >= 4 and len(des_r) >= 4:
                     bf = cv2.BFMatcher(cv2.NORM_L2)
                     matches = bf.knnMatch(des_q, des_r, k=2)
-                    good = [m for m, n in matches if m.distance < 0.70 * n.distance]
+                    good = [m for m, n in matches if len(matches) > 1 and m.distance < 0.75 * n.distance]
                     
-                    if len(good) >= 5:
+                    if len(good) >= 4:
                         src = np.float32([kp_q[m.queryIdx].pt for m in good])
                         dst = np.float32([kp_r[m.trainIdx].pt for m in good])
-                        M, inliers_mask = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=4.0)
+                        M, inliers_mask = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=5.0)
                         if M is not None and inliers_mask is not None:
                             scale = np.sqrt(M[0, 0]**2 + M[0, 1]**2)
-                            if 0.70 <= scale <= 1.40:
+                            if 0.65 <= scale <= 1.55:
                                 sift_inliers = int(np.sum(inliers_mask))
                                 sift_ratio = sift_inliers / max(1, len(good))
                                 M_affine = M
@@ -204,26 +231,26 @@ class FingerprintMatcher:
             if self.orb is not None:
                 kp_qo, des_qo = self.orb.detectAndCompute(q_clahe, None)
                 kp_ro, des_ro = self.orb.detectAndCompute(r_clahe, None)
-                if des_qo is not None and des_ro is not None and len(des_qo) >= 6 and len(des_ro) >= 6:
+                if des_qo is not None and des_ro is not None and len(des_qo) >= 4 and len(des_ro) >= 4:
                     bf_orb = cv2.BFMatcher(cv2.NORM_HAMMING)
                     matches_o = bf_orb.knnMatch(des_qo, des_ro, k=2)
-                    good_o = [m for m, n in matches_o if m.distance < 0.72 * n.distance]
-                    if len(good_o) >= 5:
+                    good_o = [m for m, n in matches_o if len(matches_o) > 1 and m.distance < 0.75 * n.distance]
+                    if len(good_o) >= 4:
                         src_o = np.float32([kp_qo[m.queryIdx].pt for m in good_o])
                         dst_o = np.float32([kp_ro[m.trainIdx].pt for m in good_o])
-                        M_o, inliers_mask_o = cv2.estimateAffinePartial2D(src_o, dst_o, method=cv2.RANSAC, ransacReprojThreshold=4.0)
+                        M_o, inliers_mask_o = cv2.estimateAffinePartial2D(src_o, dst_o, method=cv2.RANSAC, ransacReprojThreshold=5.0)
                         if M_o is not None and inliers_mask_o is not None:
                             scale_o = np.sqrt(M_o[0, 0]**2 + M_o[0, 1]**2)
-                            if 0.70 <= scale_o <= 1.40:
+                            if 0.65 <= scale_o <= 1.55:
                                 orb_inliers = int(np.sum(inliers_mask_o))
 
             # 3. Aligned Texture Cross-Correlation
             aligned_corr = 0.0
-            if M_affine is not None and sift_inliers >= 10:
+            if M_affine is not None and sift_inliers >= 6:
                 h, w = r_clahe.shape
                 warped = cv2.warpAffine(q_clahe, M_affine, (w, h))
                 mask = (warped > 15) & (r_clahe > 15)
-                if np.sum(mask) > 400:
+                if np.sum(mask) > 300:
                     w_pts = warped[mask].astype(np.float32)
                     r_pts = r_clahe[mask].astype(np.float32)
                     w_pts -= np.mean(w_pts)
@@ -233,23 +260,23 @@ class FingerprintMatcher:
                         aligned_corr = max(0.0, float(np.dot(w_pts, r_pts) / denom))
 
             # 4. Calibrate Minutiae Score
-            if sift_inliers >= 15 and sift_ratio >= 0.40:
-                minutiae_score = min(1.0, 0.85 + (sift_inliers - 15) * 0.003 + min(0.10, orb_inliers * 0.002))
-            elif sift_inliers >= 8 and sift_ratio >= 0.35 and orb_inliers >= 5:
-                minutiae_score = 0.65 + (sift_inliers - 8) * 0.02
+            if sift_inliers >= 10 and sift_ratio >= 0.35:
+                minutiae_score = min(1.0, 0.85 + (sift_inliers - 10) * 0.005 + min(0.10, orb_inliers * 0.003))
             elif sift_inliers >= 5 and sift_ratio >= 0.30:
-                minutiae_score = 0.25 + (sift_inliers - 5) * 0.04
+                minutiae_score = 0.65 + (sift_inliers - 5) * 0.04
+            elif sift_inliers >= 3:
+                minutiae_score = 0.40 + (sift_inliers - 3) * 0.05
             else:
-                minutiae_score = sift_inliers * 0.02
+                minutiae_score = sift_inliers * 0.05
 
-            if minutiae_score >= 0.60:
-                final_score = 0.75 * minutiae_score + 0.25 * max(minutiae_score, aligned_corr)
+            if minutiae_score >= 0.50:
+                final_score = 0.70 * minutiae_score + 0.30 * max(minutiae_score, aligned_corr)
             else:
-                final_score = min(minutiae_score, 0.35)
+                final_score = minutiae_score
 
             return float(final_score), sift_inliers
         except Exception:
-            return 0.0, 0
+            return None, 0
 
     def identify(self, image_input):
         """
@@ -299,7 +326,8 @@ class FingerprintMatcher:
             else:
                 user_embeddings = raw_embeddings
 
-            # Collect enrolled fingerprint paths
+            # Collect enrolled fingerprint image/paths
+            user_fp_img = user.get("fingerprint_image", "")
             fp_paths = user.get("fingerprint_paths") or [user.get("fingerprint_path", "")]
             if isinstance(fp_paths, str):
                 fp_paths = [fp_paths]
@@ -311,27 +339,28 @@ class FingerprintMatcher:
                 # 1. Deep CNN Cosine Similarity
                 cnn_sim = self.compute_cosine_similarity(query_emb, stored_emb)
 
-                # 2. High-Precision Direct Image & Minutiae Match if reference file exists
-                direct_score = 0.0
-                inliers_count = 0
+                # 2. High-Precision Direct Image & Minutiae Match
+                ref_target = ""
                 if idx < len(fp_paths) and fp_paths[idx]:
-                    direct_score, inliers_count = self.compute_direct_image_match(img_enhanced, fp_paths[idx])
+                    str_p = str(fp_paths[idx]).lstrip('/')
+                    if (STORAGE_DIR / str_p).exists() or (BASE_DIR / str_p).exists() or (BASE_DIR / 'uploads' / 'fingerprints' / Path(str_p).name).exists():
+                        ref_target = fp_paths[idx]
+                if not ref_target and user_fp_img:
+                    ref_target = user_fp_img
+
+                direct_score, inliers_count = self.compute_direct_image_match(img_enhanced, ref_target)
 
                 # Multi-Factor Score Fusion
-                if direct_score >= 0.50:
-                    # Verified by high minutiae inliers
-                    combined_sim = 0.70 * direct_score + 0.30 * cnn_sim
-                elif direct_score > 0:
-                    # Low minutiae match: heavily penalize CNN to eliminate false positives
-                    combined_sim = min(direct_score, cnn_sim * 0.40)
-                else:
-                    # No reference file or 0 minutiae match
-                    if idx < len(fp_paths) and fp_paths[idx]:
-                        # Image file exists but 0 minutiae matched -> impostor/different fingerprint
-                        combined_sim = 0.0
+                if direct_score is not None:
+                    if direct_score >= 0.50:
+                        combined_sim = max(direct_score, 0.70 * direct_score + 0.30 * cnn_sim)
+                    elif direct_score >= 0.30:
+                        combined_sim = 0.60 * direct_score + 0.40 * cnn_sim
                     else:
-                        # Pure embedding mode
-                        combined_sim = cnn_sim
+                        combined_sim = direct_score
+                else:
+                    # Reference image not loaded on server -> fallback to CNN embedding similarity
+                    combined_sim = cnn_sim
 
                 if combined_sim > user_best_sim:
                     user_best_sim = combined_sim
