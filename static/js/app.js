@@ -162,13 +162,6 @@ const dom = {
     // CNN Feature Maps
     featureMapsGrid: document.getElementById('featureMapsGrid'),
 
-    // Config Tab
-    cfgDbType: document.getElementById('cfgDbType'),
-    cfgDbName: document.getElementById('cfgDbName'),
-    cfgStatusMsg: document.getElementById('cfgStatusMsg'),
-    cfgUserCount: document.getElementById('cfgUserCount'),
-    configStatusBadge: document.getElementById('configStatusBadge'),
-
     // ID Modal
     idCardModal: document.getElementById('idCardModal'),
     closeModalBtn: document.getElementById('closeModalBtn'),
@@ -713,8 +706,7 @@ async function loadDirectory() {
 
         if (data.success) {
             allEnrolledUsers = data.users;
-            dom.totalUsersCount.textContent = allEnrolledUsers.length;
-            dom.cfgUserCount.textContent = `${allEnrolledUsers.length} Profiles`;
+            if (dom.totalUsersCount) dom.totalUsersCount.textContent = allEnrolledUsers.length;
             renderDirectoryCards(allEnrolledUsers);
         }
     } catch (err) {
