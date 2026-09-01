@@ -52,6 +52,9 @@
                 <button class="sound-toggle-btn" id="soundToggleBtn" title="Toggle Futuristic Audio SFX">
                     <i class="fa-solid fa-volume-high"></i>
                 </button>
+                <button class="sound-toggle-btn auth-lock-btn" id="authLockToggleBtn" title="Lock / Unlock Admin Access">
+                    <i class="fa-solid fa-lock" id="authLockIcon"></i>
+                </button>
             </div>
         </div>
 
@@ -65,10 +68,12 @@
                 <button class="tab-btn" data-tab="tab-enroll" id="tabBtnEnroll">
                     <i class="fa-solid fa-user-plus"></i>
                     <span>Enroll New User</span>
+                    <i class="fa-solid fa-lock tab-lock-badge" title="Password Protected"></i>
                 </button>
                 <button class="tab-btn" data-tab="tab-directory" id="tabBtnDirectory">
                     <i class="fa-solid fa-address-book"></i>
                     <span>Citizen Directory</span>
+                    <i class="fa-solid fa-lock tab-lock-badge" title="Password Protected"></i>
                 </button>
                 <button class="tab-btn" data-tab="tab-cnn" id="tabBtnCnn">
                     <i class="fa-solid fa-network-wired"></i>
@@ -77,6 +82,7 @@
                 <button class="tab-btn" data-tab="tab-config" id="tabBtnConfig">
                     <i class="fa-solid fa-sliders"></i>
                     <span>Database & .env</span>
+                    <i class="fa-solid fa-lock tab-lock-badge" title="Password Protected"></i>
                 </button>
             </div>
         </nav>
@@ -789,6 +795,45 @@
                     <i class="fa-solid fa-print"></i> Print / Save PDF
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal: Security Passcode Verification Gate -->
+    <div class="modal-backdrop hidden" id="securityAuthModal">
+        <div class="modal-card glass-panel security-auth-card">
+            <div class="security-auth-icon-wrap">
+                <div class="security-shield-ring">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+            
+            <div class="security-auth-header">
+                <span class="badge badge-red"><i class="fa-solid fa-lock"></i> RESTRICTED ACCESS AREA</span>
+                <h2 id="securityModalTitle">Administrator Passcode Required</h2>
+                <p id="securityModalSubtitle">Enter the security passcode to access restricted citizen records & database controls.</p>
+            </div>
+
+            <form id="securityAuthForm" class="security-auth-form">
+                <div class="form-group" style="text-align: left;">
+                    <label for="securityAuthInput"><i class="fa-solid fa-key text-cyan"></i> Security Passcode</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="securityAuthInput" class="security-pass-input" placeholder="Enter security passcode..." autocomplete="current-password" required>
+                        <button type="button" class="password-toggle-btn" id="toggleSecurityAuthPassBtn" tabindex="-1">
+                            <i class="fa-solid fa-eye" id="toggleSecurityAuthPassIcon"></i>
+                        </button>
+                    </div>
+                    <div id="securityAuthError" class="auth-error-text hidden"></div>
+                </div>
+
+                <div class="security-modal-actions">
+                    <button type="button" class="btn btn-ghost" id="cancelSecurityAuthBtn">
+                        <i class="fa-solid fa-xmark"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary btn-glow" id="submitSecurityAuthBtn">
+                        <i class="fa-solid fa-unlock-keyhole"></i> Authorize & Access
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

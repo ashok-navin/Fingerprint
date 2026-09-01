@@ -179,13 +179,98 @@ const dom = {
     modalMobile: document.getElementById('modalMobile'),
     modalEmergency: document.getElementById('modalEmergency'),
     modalAddress: document.getElementById('modalAddress'),
-    modalHash: document.getElementById('modalHash')
+    modalHash: document.getElementById('modalHash'),
+
+    // Security Passcode Modal
+    authLockToggleBtn: document.getElementById('authLockToggleBtn'),
+    authLockIcon: document.getElementById('authLockIcon'),
+    securityAuthModal: document.getElementById('securityAuthModal'),
+    securityAuthCard: document.querySelector('.security-auth-card'),
+    securityModalTitle: document.getElementById('securityModalTitle'),
+    securityModalSubtitle: document.getElementById('securityModalSubtitle'),
+    securityAuthForm: document.getElementById('securityAuthForm'),
+    securityAuthInput: document.getElementById('securityAuthInput'),
+    toggleSecurityAuthPassBtn: document.getElementById('toggleSecurityAuthPassBtn'),
+    toggleSecurityAuthPassIcon: document.getElementById('toggleSecurityAuthPassIcon'),
+    securityAuthError: document.getElementById('securityAuthError'),
+    cancelSecurityAuthBtn: document.getElementById('cancelSecurityAuthBtn'),
+    submitSecurityAuthBtn: document.getElementById('submitSecurityAuthBtn')
 };
 
 // ==========================================
-// 4. INITIALIZATION
+// 4. SECURITY & AUTHENTICATION STATE
+// ==========================================
+const PROTECTED_TABS = ['tab-enroll', 'tab-directory', 'tab-config'];
+let activeAuthorizedTab = null;
+let currentAuthPasscode = '';
+let pendingProtectedTab = null;
+
+function isSystemAuthenticated(tabId) {
+    return activeAuthorizedTab === tabId && !!currentAuthPasscode;
+}
+
+function getStoredAuthPasscode() {
+    return currentAuthPasscode;
+}
+
+function setSystemAuthenticated(tabId, passcode) {
+    activeAuthorizedTab = tabId;
+    currentAuthPasscode = passcode;
+    updateAuthUiState(true, tabId);
+    const passInput = document.getElementById('enrollPassword');
+    if (passInput) passInput.value = passcode;
+}
+
+function lockSystem(showNotification = true) {
+    activeAuthorizedTab = null;
+    currentAuthPasscode = '';
+    updateAuthUiState(false);
+    const passInput = document.getElementById('enrollPassword');
+    if (passInput) passInput.value = '';
+    
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+    if (PROTECTED_TABS.includes(activeTab) && showNotification) {
+        dom.tabBtns.forEach(b => b.classList.remove('active'));
+        dom.tabPanels.forEach(p => p.classList.remove('active'));
+        const scanBtn = document.getElementById('tabBtnScan');
+        const scanPanel = document.getElementById('tab-scan');
+        if (scanBtn) scanBtn.classList.add('active');
+        if (scanPanel) scanPanel.classList.add('active');
+    }
+    if (showNotification) {
+        showToast("System Locked: Restricted Access Enabled", "info");
+    }
+}
+
+function updateAuthUiState(isAuth, unlockedTabId = null) {
+    if (dom.authLockIcon) {
+        dom.authLockIcon.className = isAuth ? 'fa-solid fa-lock-open' : 'fa-solid fa-lock';
+    }
+    if (dom.authLockToggleBtn) {
+        dom.authLockToggleBtn.classList.toggle('unlocked', isAuth);
+        dom.authLockToggleBtn.title = isAuth ? 'Access Active (Click to Lock)' : 'System Locked (Click to Unlock)';
+    }
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        const tabId = btn.dataset.tab;
+        if (PROTECTED_TABS.includes(tabId)) {
+            const isThisTabUnlocked = isAuth && tabId === unlockedTabId;
+            btn.classList.toggle('unlocked', isThisTabUnlocked);
+            const lockBadge = btn.querySelector('.tab-lock-badge');
+            if (lockBadge) {
+                lockBadge.className = isThisTabUnlocked ? 'fa-solid fa-lock-open tab-lock-badge' : 'fa-solid fa-lock tab-lock-badge';
+            }
+        }
+    });
+}
+
+// ==========================================
+// 5. INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    // Start in locked state on page load / refresh
+    lockSystem(false);
+    
     initTabs();
     initSoundToggle();
     initQuickSamples();
@@ -194,13 +279,31 @@ document.addEventListener('DOMContentLoaded', () => {
     initDirectory();
     fetchDbStatus();
     initModalEvents();
+    initSecurityAuthEvents();
 });
 
 // Tab navigation
 function initTabs() {
     dom.tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
             const target = btn.dataset.tab;
+            const currentActive = document.querySelector('.tab-btn.active')?.dataset?.tab;
+
+            if (target === currentActive) return;
+
+            // Intercept protected tabs if not authenticated for this specific tab
+            if (PROTECTED_TABS.includes(target) && !isSystemAuthenticated(target)) {
+                e.preventDefault();
+                lockSystem(false);
+                openSecurityAuthModal(target);
+                return;
+            }
+
+            // Auto-lock when navigating away
+            if (currentActive !== target) {
+                lockSystem(false);
+            }
+
             dom.tabBtns.forEach(b => b.classList.remove('active'));
             dom.tabPanels.forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
@@ -936,15 +1039,158 @@ function openIdModal(user) {
 }
 
 // ==========================================
-// 13. UTILITY FUNCTIONS
+// 13. SECURITY AUTHENTICATION EVENTS
+// ==========================================
+function initSecurityAuthEvents() {
+    if (dom.authLockToggleBtn) {
+        dom.authLockToggleBtn.addEventListener('click', () => {
+            if (activeAuthorizedTab) {
+                lockSystem(true);
+            } else {
+                openSecurityAuthModal('tab-directory');
+            }
+        });
+    }
+
+    if (dom.toggleSecurityAuthPassBtn && dom.securityAuthInput) {
+        dom.toggleSecurityAuthPassBtn.addEventListener('click', () => {
+            const isPass = dom.securityAuthInput.type === 'password';
+            dom.securityAuthInput.type = isPass ? 'text' : 'password';
+            if (dom.toggleSecurityAuthPassIcon) {
+                dom.toggleSecurityAuthPassIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            }
+        });
+    }
+
+    if (dom.cancelSecurityAuthBtn) {
+        dom.cancelSecurityAuthBtn.addEventListener('click', () => closeSecurityAuthModal());
+    }
+
+    if (dom.securityAuthModal) {
+        dom.securityAuthModal.addEventListener('click', (e) => {
+            if (e.target === dom.securityAuthModal) closeSecurityAuthModal();
+        });
+    }
+
+    if (dom.securityAuthForm) {
+        dom.securityAuthForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const passcode = dom.securityAuthInput.value.trim();
+            if (!passcode) return;
+
+            const submitBtn = dom.submitSecurityAuthBtn;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying Passcode...';
+            if (dom.securityAuthError) dom.securityAuthError.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/verify-passcode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passcode })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success && data.authorized) {
+                    audio.playSuccessChime();
+                    const targetToOpen = pendingProtectedTab || 'tab-directory';
+                    setSystemAuthenticated(targetToOpen, passcode);
+                    closeSecurityAuthModal();
+
+                    dom.tabBtns.forEach(b => b.classList.remove('active'));
+                    dom.tabPanels.forEach(p => p.classList.remove('active'));
+                    const targetBtn = document.querySelector(`.tab-btn[data-tab="${targetToOpen}"]`);
+                    const targetPanel = document.getElementById(targetToOpen);
+                    if (targetBtn) targetBtn.classList.add('active');
+                    if (targetPanel) targetPanel.classList.add('active');
+
+                    if (targetToOpen === 'tab-directory') {
+                        loadDirectory();
+                    } else if (targetToOpen === 'tab-config') {
+                        fetchDbStatus();
+                    }
+
+                    showToast(`Access Granted: Authorized for ${targetBtn?.innerText?.trim() || 'Section'}`, "success");
+                } else {
+                    audio.playWarningTone();
+                    if (dom.securityAuthCard) {
+                        dom.securityAuthCard.classList.remove('shake');
+                        void dom.securityAuthCard.offsetWidth;
+                        dom.securityAuthCard.classList.add('shake');
+                    }
+                    if (dom.securityAuthError) {
+                        dom.securityAuthError.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${data.error || 'Incorrect security passcode. Access Denied.'}`;
+                        dom.securityAuthError.classList.remove('hidden');
+                    }
+                    dom.securityAuthInput.focus();
+                    dom.securityAuthInput.select();
+                }
+            } catch (err) {
+                audio.playWarningTone();
+                if (dom.securityAuthError) {
+                    dom.securityAuthError.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Server verification error. Please try again.';
+                    dom.securityAuthError.classList.remove('hidden');
+                }
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> Authorize & Access';
+            }
+        });
+    }
+}
+
+function openSecurityAuthModal(targetTab) {
+    pendingProtectedTab = targetTab;
+    
+    const titles = {
+        'tab-enroll': { 
+            title: 'Citizen Enrollment Authorization', 
+            sub: 'Enter security passcode to enroll new citizens & extract multi-scan CNN embeddings.' 
+        },
+        'tab-directory': { 
+            title: 'Citizen Biometric Directory Authorization', 
+            sub: 'Enter security passcode to browse, search, and manage registered biometric citizen profiles.' 
+        },
+        'tab-config': { 
+            title: 'Database & Environment Settings', 
+            sub: 'Enter security passcode to inspect database connection and run batch dataset imports.' 
+        }
+    };
+
+    const meta = titles[targetTab] || { 
+        title: 'Administrator Authorization Required', 
+        sub: 'Enter the security passcode to access restricted administrative controls.' 
+    };
+
+    if (dom.securityModalTitle) dom.securityModalTitle.textContent = meta.title;
+    if (dom.securityModalSubtitle) dom.securityModalSubtitle.textContent = meta.sub;
+    if (dom.securityAuthError) {
+        dom.securityAuthError.textContent = '';
+        dom.securityAuthError.classList.add('hidden');
+    }
+    if (dom.securityAuthInput) {
+        dom.securityAuthInput.value = '';
+    }
+
+    dom.securityAuthModal.classList.remove('hidden');
+    setTimeout(() => {
+        if (dom.securityAuthInput) dom.securityAuthInput.focus();
+    }, 120);
+}
+
+function closeSecurityAuthModal() {
+    dom.securityAuthModal.classList.add('hidden');
+    pendingProtectedTab = null;
+}
+
+// ==========================================
+// 14. UTILITY FUNCTIONS
 // ==========================================
 window.copyText = function(elementId) {
     const text = document.getElementById(elementId).textContent;
     navigator.clipboard.writeText(text);
     showToast(`Copied to clipboard: ${text}`, "info");
 };
-
-
 
 function showToast(msg, type = "info") {
     const container = document.getElementById('toastContainer');
