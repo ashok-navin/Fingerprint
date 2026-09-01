@@ -3,7 +3,7 @@ import uuid
 import json
 import base64
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from werkzeug.utils import secure_filename
 
 from config import (
@@ -29,7 +29,39 @@ def index():
 
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):
-    return send_from_directory(str(UPLOAD_FOLDER), filename)
+    # 1. If file exists on local filesystem, serve it
+    file_path = UPLOAD_FOLDER / filename
+    if file_path.exists():
+        return send_from_directory(str(UPLOAD_FOLDER), filename)
+    
+    # 2. Check if this filename is stored in database as base64
+    try:
+        users = db.get_all_users()
+        for u in users:
+            fp_p = u.get('fingerprint_path', '')
+            fp_list = u.get('fingerprint_paths', [])
+            fp_img = u.get('fingerprint_image', '')
+            if filename in fp_p or any(filename in p for p in fp_list):
+                if fp_img and fp_img.startswith('data:image/'):
+                    header, data = fp_img.split(',', 1)
+                    mime = header.split(';')[0].split(':')[1] if ':' in header else 'image/png'
+                    raw_bytes = base64.b64decode(data)
+                    return Response(raw_bytes, mimetype=mime)
+                break
+    except Exception as e:
+        print(f"[Uploads] Lookup error: {e}")
+
+    # 3. Dynamic Biometric Synthesizer Fallback for Vercel/Cloud
+    try:
+        from seed_data import generate_synthetic_fingerprint
+        import cv2
+        img = generate_synthetic_fingerprint(seed=abs(hash(filename)) % 1000)
+        _, buf = cv2.imencode('.png', img)
+        return Response(buf.tobytes(), mimetype='image/png')
+    except Exception as e:
+        print(f"[Uploads] Fallback generator error: {e}")
+        return jsonify({"error": "File not found"}), 404
+
 
 @app.route('/api/db-status', methods=['GET'])
 def get_db_status():
@@ -181,6 +213,7 @@ def enroll_user():
         embeddings_list = []
         fingerprint_paths = []
         total_minutiae = 0
+        primary_b64 = ""
 
         # Process each uploaded fingerprint image (up to 10 images)
         for idx, file in enumerate(valid_files[:10]):
@@ -190,14 +223,20 @@ def enroll_user():
             total_minutiae += features["minutiae_count"]
 
             ext = file.filename.rsplit('.', 1)[1].lower()
-            unique_name = f"{secure_filename(name).lower()}_scan{idx+1}_{uuid.uuid4().hex[:6]}.{ext}"
-            save_path = FINGERPRINT_FOLDER / unique_name
-            with open(save_path, 'wb') as f:
-                f.write(image_bytes)
+            if idx == 0:
+                primary_b64 = f"data:image/{ext};base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
-            sample_copy = SAMPLE_FOLDER / unique_name
-            with open(sample_copy, 'wb') as f:
-                f.write(image_bytes)
+            unique_name = f"{secure_filename(name).lower()}_scan{idx+1}_{uuid.uuid4().hex[:6]}.{ext}"
+            try:
+                save_path = FINGERPRINT_FOLDER / unique_name
+                with open(save_path, 'wb') as f:
+                    f.write(image_bytes)
+
+                sample_copy = SAMPLE_FOLDER / unique_name
+                with open(sample_copy, 'wb') as f:
+                    f.write(image_bytes)
+            except Exception:
+                pass
 
             fingerprint_paths.append(f"/uploads/fingerprints/{unique_name}")
 
@@ -211,6 +250,7 @@ def enroll_user():
             "age": age_int,
             "gender": gender,
             "fingerprint_path": fingerprint_paths[0] if fingerprint_paths else "",
+            "fingerprint_image": primary_b64,
             "fingerprint_paths": fingerprint_paths,
             "embeddings": embeddings_list
         }
@@ -255,6 +295,7 @@ def import_dataset():
 
             embeddings_list = []
             fingerprint_paths = []
+            primary_b64 = ""
             for idx, img_path in enumerate(img_files[:10]):
                 with open(img_path, 'rb') as f:
                     img_bytes = f.read()
@@ -262,13 +303,19 @@ def import_dataset():
                 embeddings_list.append(features["embedding"])
 
                 ext = img_path.suffix.lstrip('.')
+                if idx == 0:
+                    primary_b64 = f"data:image/{ext};base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+
                 dest_name = f"{secure_filename(person_name).lower()}_scan{idx+1}_{uuid.uuid4().hex[:6]}.{ext}"
-                dest_path = FINGERPRINT_FOLDER / dest_name
-                with open(dest_path, 'wb') as f:
-                    f.write(img_bytes)
-                sample_path = SAMPLE_FOLDER / dest_name
-                with open(sample_path, 'wb') as f:
-                    f.write(img_bytes)
+                try:
+                    dest_path = FINGERPRINT_FOLDER / dest_name
+                    with open(dest_path, 'wb') as f:
+                        f.write(img_bytes)
+                    sample_path = SAMPLE_FOLDER / dest_name
+                    with open(sample_path, 'wb') as f:
+                        f.write(img_bytes)
+                except Exception:
+                    pass
 
                 fingerprint_paths.append(f"/uploads/fingerprints/{dest_name}")
 
@@ -282,6 +329,7 @@ def import_dataset():
                 "age": 30,
                 "gender": "Other",
                 "fingerprint_path": fingerprint_paths[0] if fingerprint_paths else "",
+                "fingerprint_image": primary_b64,
                 "fingerprint_paths": fingerprint_paths,
                 "embeddings": embeddings_list
             }

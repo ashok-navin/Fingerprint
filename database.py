@@ -33,10 +33,16 @@ class BiometricDatabase:
                         age INTEGER NOT NULL,
                         gender TEXT NOT NULL,
                         fingerprint_path TEXT,
+                        fingerprint_image TEXT,
                         embeddings_json TEXT,
                         created_at TEXT
                     )
                 ''')
+                # Run safe migration if column was missing
+                try:
+                    cursor.execute('ALTER TABLE users ADD COLUMN fingerprint_image TEXT')
+                except Exception:
+                    pass
                 conn.commit()
         except Exception as e:
             print(f"[Database] SQLite local cache notice: {e}")
@@ -97,11 +103,20 @@ class BiometricDatabase:
         Insert user record.
         user_data dict should contain:
         name, mobile, blood_group, emergency_contact, address, age, gender,
-        fingerprint_path, embeddings (list of floats)
+        fingerprint_path, fingerprint_image (base64 data URL), embeddings (list of floats)
         """
         now = datetime.datetime.utcnow().isoformat()
         user_data['created_at'] = now
         
+        # Ensure fingerprint_image is set if fingerprint_path is base64 data URL
+        fp_img = user_data.get('fingerprint_image', '')
+        fp_path = user_data.get('fingerprint_path', '')
+        if not fp_img and fp_path and fp_path.startswith('data:image/'):
+            fp_img = fp_path
+            user_data['fingerprint_image'] = fp_img
+        elif fp_img and not fp_path:
+            user_data['fingerprint_path'] = fp_img
+
         # 1. Save to Atlas if available
         if self.use_atlas and self.collection is not None:
             try:
@@ -124,11 +139,10 @@ class BiometricDatabase:
             if not fp_primary and user_data.get('fingerprint_paths'):
                 fp_primary = user_data['fingerprint_paths'][0]
             
-            # Store paths JSON inside embeddings or metadata if needed
             cursor.execute('''
                 INSERT OR REPLACE INTO users 
-                (id, name, mobile, blood_group, emergency_contact, address, age, gender, fingerprint_path, embeddings_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, name, mobile, blood_group, emergency_contact, address, age, gender, fingerprint_path, fingerprint_image, embeddings_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 str(user_data['id']),
                 user_data['name'],
@@ -139,6 +153,7 @@ class BiometricDatabase:
                 int(user_data['age']),
                 user_data['gender'],
                 fp_primary,
+                user_data.get('fingerprint_image', ''),
                 embeddings_str,
                 user_data['created_at']
             ))
@@ -147,7 +162,7 @@ class BiometricDatabase:
         return user_data
 
     def get_all_users(self):
-        """Fetch all registered users with their embeddings."""
+        """Fetch all registered users with their embeddings and fingerprint image data."""
         users = []
         if self.use_atlas and self.collection is not None:
             try:
@@ -158,6 +173,9 @@ class BiometricDatabase:
                         del doc['_id']
                     if 'fingerprint_paths' not in doc and 'fingerprint_path' in doc:
                         doc['fingerprint_paths'] = [doc['fingerprint_path']] if doc['fingerprint_path'] else []
+                    if 'fingerprint_image' not in doc:
+                        fp = doc.get('fingerprint_path', '')
+                        doc['fingerprint_image'] = fp if fp.startswith('data:image/') else ''
                     users.append(doc)
                 return users
             except Exception as e:
@@ -177,6 +195,14 @@ class BiometricDatabase:
                     except Exception:
                         embeddings = []
                 fp_path = r['fingerprint_path'] or ''
+                fp_img = ''
+                try:
+                    fp_img = r['fingerprint_image'] or ''
+                except Exception:
+                    pass
+                if not fp_img and fp_path.startswith('data:image/'):
+                    fp_img = fp_path
+
                 users.append({
                     "id": r['id'],
                     "name": r['name'],
@@ -187,6 +213,7 @@ class BiometricDatabase:
                     "age": r['age'],
                     "gender": r['gender'],
                     "fingerprint_path": fp_path,
+                    "fingerprint_image": fp_img,
                     "fingerprint_paths": [fp_path] if fp_path else [],
                     "embeddings": embeddings,
                     "created_at": r['created_at']
@@ -203,6 +230,9 @@ class BiometricDatabase:
                     doc['id'] = str(doc.get('_id', doc.get('id', '')))
                     if '_id' in doc:
                         del doc['_id']
+                    if 'fingerprint_image' not in doc:
+                        fp = doc.get('fingerprint_path', '')
+                        doc['fingerprint_image'] = fp if fp.startswith('data:image/') else ''
                     return doc
             except Exception:
                 pass
@@ -219,6 +249,14 @@ class BiometricDatabase:
                         embeddings = json.loads(r['embeddings_json'])
                     except Exception:
                         embeddings = []
+                fp_path = r['fingerprint_path'] or ''
+                fp_img = ''
+                try:
+                    fp_img = r['fingerprint_image'] or ''
+                except Exception:
+                    pass
+                if not fp_img and fp_path.startswith('data:image/'):
+                    fp_img = fp_path
                 return {
                     "id": r['id'],
                     "name": r['name'],
@@ -228,7 +266,8 @@ class BiometricDatabase:
                     "address": r['address'],
                     "age": r['age'],
                     "gender": r['gender'],
-                    "fingerprint_path": r['fingerprint_path'],
+                    "fingerprint_path": fp_path,
+                    "fingerprint_image": fp_img,
                     "embeddings": embeddings,
                     "created_at": r['created_at']
                 }
@@ -252,6 +291,20 @@ class BiometricDatabase:
             if cursor.rowcount > 0:
                 deleted = True
         return deleted
+
+    def update_user_fingerprint_image(self, user_id, fingerprint_image_b64):
+        """Update base64 fingerprint image for a user in Atlas and SQLite."""
+        if self.use_atlas and self.collection is not None:
+            try:
+                query = {"_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else {"id": user_id}
+                self.collection.update_one(query, {"$set": {"fingerprint_image": fingerprint_image_b64}})
+            except Exception as e:
+                print(f"[Database] Error updating Atlas fingerprint image: {e}")
+
+        with sqlite3.connect(self.sqlite_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET fingerprint_image = ? WHERE id = ?', (fingerprint_image_b64, str(user_id)))
+            conn.commit()
 
     def update_user_embeddings(self, user_id, embeddings_list):
         """Update embeddings for an existing user record in both Atlas and SQLite."""
@@ -283,4 +336,5 @@ class BiometricDatabase:
 
 # Global database instance
 db = BiometricDatabase()
+
 

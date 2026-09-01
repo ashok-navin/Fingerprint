@@ -760,12 +760,12 @@ function renderDirectoryCards(users) {
         const card = document.createElement('div');
         card.className = 'citizen-dir-card';
         
-        const fpImg = u.fingerprint_path || '/static/img/fingerprint_placeholder.png';
+        const fpImg = u.fingerprint_image || u.fingerprint_path || '/static/img/fingerprint_placeholder.svg';
 
         card.innerHTML = `
             <div class="dir-card-header">
                 <div class="dir-avatar-info">
-                    <img src="${fpImg}" alt="Print" class="dir-thumb" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'40\\' height=\\'40\\' fill=\\'%2300f2fe\\' viewBox=\\'0 0 512 512\\'><path d=\\'M256 0a256 256 0 1 0 0 512A256 256 0 1 0 256 0z\\'/></svg>'">
+                    <img src="${fpImg}" alt="Print" class="dir-thumb" onerror="this.onerror=null; this.src='/static/img/fingerprint_placeholder.svg';">
                     <div>
                         <div class="dir-name">${u.name}</div>
                         <div class="dir-sub">${u.age} Yrs • ${u.gender} • #${u.id.substring(0, 10)}</div>
