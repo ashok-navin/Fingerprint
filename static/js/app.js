@@ -793,29 +793,117 @@ function renderDirectoryCards(users) {
     });
 }
 
+let pendingDeleteUserId = null;
+let pendingDeleteUserName = '';
+
 window.printCitizenId = function(userId) {
     const user = allEnrolledUsers.find(u => u.id === userId);
     if (user) openIdModal(user);
 };
 
-window.deleteCitizen = async function(userId, userName) {
-    if (!confirm(`Are you sure you want to delete biometric record for "${userName}"?`)) return;
+window.deleteCitizen = function(userId, userName) {
+    openDeleteConfirmModal(userId, userName);
+};
 
+function openDeleteConfirmModal(userId, userName) {
+    pendingDeleteUserId = userId;
+    pendingDeleteUserName = userName;
+    
+    const targetNameEl = document.getElementById('deleteTargetName');
+    const passInput = document.getElementById('deleteAuthPassword');
+    const errEl = document.getElementById('deleteModalError');
+    const modal = document.getElementById('deleteConfirmModal');
+    
+    if (targetNameEl) targetNameEl.textContent = `"${userName}"`;
+    if (passInput) {
+        passInput.value = '';
+        passInput.type = 'password';
+    }
+    const icon = document.getElementById('toggleDeletePassIcon');
+    if (icon) icon.className = 'fa-solid fa-eye';
+    
+    if (errEl) {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+    }
+    
+    if (modal) modal.classList.remove('hidden');
+    setTimeout(() => passInput && passInput.focus(), 100);
+}
+
+function closeDeleteConfirmModal() {
+    const modal = document.getElementById('deleteConfirmModal');
+    if (modal) modal.classList.add('hidden');
+    pendingDeleteUserId = null;
+    pendingDeleteUserName = '';
+}
+
+async function executeDeleteWithPassword() {
+    if (!pendingDeleteUserId) return;
+    
+    const passInput = document.getElementById('deleteAuthPassword');
+    const errEl = document.getElementById('deleteModalError');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    const enteredPassword = passInput ? passInput.value.trim() : '';
+    
+    if (!enteredPassword) {
+        if (errEl) {
+            errEl.textContent = 'Please enter security passcode to authorize deletion.';
+            errEl.classList.remove('hidden');
+        }
+        if (passInput) passInput.focus();
+        audio.playWarningTone();
+        return;
+    }
+    
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting...';
+    }
+    
     try {
-        const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/users/${pendingDeleteUserId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Admin-Password': enteredPassword
+            },
+            body: JSON.stringify({ password: enteredPassword })
+        });
         const data = await res.json();
+        
         if (data.success) {
-            showToast(`Deleted ${userName} from database.`, "info");
+            audio.playSuccessChime();
+            showToast(`Deleted ${pendingDeleteUserName} from database successfully.`, "success");
+            closeDeleteConfirmModal();
             loadDirectory();
             initQuickSamples();
             fetchDbStatus();
         } else {
-            showToast(data.error || "Failed to delete user", "error");
+            audio.playWarningTone();
+            if (errEl) {
+                errEl.textContent = data.error || 'Authentication Failed: Incorrect passcode.';
+                errEl.classList.remove('hidden');
+            }
+            if (passInput) {
+                passInput.focus();
+                passInput.select();
+            }
+            showToast(data.error || 'Deletion failed: Incorrect security passcode', 'error');
         }
     } catch (e) {
-        showToast("Error deleting record", "error");
+        if (errEl) {
+            errEl.textContent = 'Network or server error during deletion.';
+            errEl.classList.remove('hidden');
+        }
+        showToast('Error deleting record', 'error');
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Record';
+        }
     }
-};
+}
 
 // ==========================================
 // 10. CNN ACTIVATION MAPS RENDERER
@@ -914,7 +1002,7 @@ async function fetchDbStatus() {
 }
 
 // ==========================================
-// 12. ID BADGE PRINT PREVIEW MODAL
+// 12. ID BADGE & SECURITY MODALS
 // ==========================================
 function initModalEvents() {
     dom.closeModalBtn.addEventListener('click', () => dom.idCardModal.classList.add('hidden'));
@@ -922,6 +1010,38 @@ function initModalEvents() {
     dom.idCardModal.addEventListener('click', (e) => {
         if (e.target === dom.idCardModal) dom.idCardModal.classList.add('hidden');
     });
+
+    // Delete Modal Events
+    const deleteModal = document.getElementById('deleteConfirmModal');
+    const closeDeleteBtn = document.getElementById('closeDeleteModalBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const toggleDeletePassBtn = document.getElementById('toggleDeletePassBtn');
+    const deletePassInput = document.getElementById('deleteAuthPassword');
+    const toggleDeletePassIcon = document.getElementById('toggleDeletePassIcon');
+
+    if (closeDeleteBtn) closeDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
+    if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
+    if (deleteModal) {
+        deleteModal.addEventListener('click', (e) => {
+            if (e.target === deleteModal) closeDeleteConfirmModal();
+        });
+    }
+    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', executeDeleteWithPassword);
+    if (deletePassInput) {
+        deletePassInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') executeDeleteWithPassword();
+        });
+    }
+    if (toggleDeletePassBtn && deletePassInput) {
+        toggleDeletePassBtn.addEventListener('click', () => {
+            const isPass = deletePassInput.type === 'password';
+            deletePassInput.type = isPass ? 'text' : 'password';
+            if (toggleDeletePassIcon) {
+                toggleDeletePassIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            }
+        });
+    }
 }
 
 function openIdModal(user) {

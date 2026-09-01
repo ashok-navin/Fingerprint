@@ -94,6 +94,17 @@ def get_user(user_id):
 
 @app.route('/api/users/<user_id>', methods=['DELETE'])
 def delete_user(user_id):
+    auth_password = request.headers.get('X-Admin-Password', '') or request.args.get('password', '')
+    if not auth_password and request.is_json:
+        data = request.get_json(silent=True) or {}
+        auth_password = data.get('password', '')
+
+    if not auth_password or auth_password.strip() != ENROLL_PASSWORD:
+        return jsonify({
+            "success": False,
+            "error": "Authentication Failed: Incorrect security passcode. Authorization required to delete a record."
+        }), 403
+
     success = db.delete_user(user_id)
     if success:
         return jsonify({"success": True, "message": "User deleted successfully"})
