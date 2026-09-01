@@ -63,23 +63,6 @@ def serve_upload(filename):
         return jsonify({"error": "File not found"}), 404
 
 
-@app.route('/api/verify-passcode', methods=['POST'])
-def verify_passcode():
-    """Verifies security passcode for accessing protected tabs (Directory, Database Config, Enrollment)."""
-    try:
-        data = request.get_json() or {}
-        passcode = data.get('passcode', '').strip()
-        if passcode == ENROLL_PASSWORD:
-            return jsonify({"success": True, "authorized": True, "message": "Access Granted"})
-        return jsonify({
-            "success": False, 
-            "authorized": False, 
-            "error": "Authentication Failed: Incorrect security passcode. Access Denied."
-        }), 403
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
 @app.route('/api/db-status', methods=['GET'])
 def get_db_status():
     status = db.get_status()
