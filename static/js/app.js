@@ -200,54 +200,68 @@ const dom = {
 // ==========================================
 // 4. SECURITY & AUTHENTICATION STATE
 // ==========================================
-const AUTH_STORAGE_KEY = 'apex_bio_admin_pass';
+// Ephemeral in-memory security state: automatically resets on page refresh or navigation change
 const PROTECTED_TABS = ['tab-enroll', 'tab-directory', 'tab-config'];
+let activeAuthorizedTab = null;
+let currentAuthPasscode = '';
 let pendingProtectedTab = null;
 
-function isSystemAuthenticated() {
-    return !!sessionStorage.getItem(AUTH_STORAGE_KEY);
+function isSystemAuthenticated(tabId) {
+    // Only authenticated if this exact tab was authorized
+    return activeAuthorizedTab === tabId && !!currentAuthPasscode;
 }
 
 function getStoredAuthPasscode() {
-    return sessionStorage.getItem(AUTH_STORAGE_KEY) || '';
+    return currentAuthPasscode;
 }
 
-function setSystemAuthenticated(passcode) {
-    sessionStorage.setItem(AUTH_STORAGE_KEY, passcode);
-    updateAuthUiState(true);
+function setSystemAuthenticated(tabId, passcode) {
+    activeAuthorizedTab = tabId;
+    currentAuthPasscode = passcode;
+    updateAuthUiState(true, tabId);
     const passInput = document.getElementById('enrollPassword');
     if (passInput) passInput.value = passcode;
 }
 
-function lockSystem() {
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+function lockSystem(showNotification = true) {
+    activeAuthorizedTab = null;
+    currentAuthPasscode = '';
     updateAuthUiState(false);
     const passInput = document.getElementById('enrollPassword');
     if (passInput) passInput.value = '';
     
-    // If currently on a protected tab, switch to scan tab
+    // If currently on a protected tab and user clicked manual lock, switch back to public scanner
     const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
-    if (PROTECTED_TABS.includes(activeTab)) {
-        switchTab('tab-scan');
+    if (PROTECTED_TABS.includes(activeTab) && showNotification) {
+        dom.tabBtns.forEach(b => b.classList.remove('active'));
+        dom.tabPanels.forEach(p => p.classList.remove('active'));
+        const scanBtn = document.getElementById('tabBtnScan');
+        const scanPanel = document.getElementById('tab-scan');
+        if (scanBtn) scanBtn.classList.add('active');
+        if (scanPanel) scanPanel.classList.add('active');
     }
-    showToast("System Locked: Restricted Access Enabled", "info");
+    if (showNotification) {
+        showToast("System Locked: Restricted Access Enabled", "info");
+    }
 }
 
-function updateAuthUiState(isAuth) {
+function updateAuthUiState(isAuth, unlockedTabId = null) {
     if (dom.authLockIcon) {
         dom.authLockIcon.className = isAuth ? 'fa-solid fa-lock-open' : 'fa-solid fa-lock';
     }
     if (dom.authLockToggleBtn) {
         dom.authLockToggleBtn.classList.toggle('unlocked', isAuth);
-        dom.authLockToggleBtn.title = isAuth ? 'Admin Access Active (Click to Lock)' : 'System Locked (Click to Unlock)';
+        dom.authLockToggleBtn.title = isAuth ? 'Access Active (Click to Lock)' : 'System Locked (Click to Unlock)';
     }
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        if (PROTECTED_TABS.includes(btn.dataset.tab)) {
-            btn.classList.toggle('unlocked', isAuth);
+        const tabId = btn.dataset.tab;
+        if (PROTECTED_TABS.includes(tabId)) {
+            const isThisTabUnlocked = isAuth && tabId === unlockedTabId;
+            btn.classList.toggle('unlocked', isThisTabUnlocked);
             const lockBadge = btn.querySelector('.tab-lock-badge');
             if (lockBadge) {
-                lockBadge.className = isAuth ? 'fa-solid fa-lock-open tab-lock-badge' : 'fa-solid fa-lock tab-lock-badge';
+                lockBadge.className = isThisTabUnlocked ? 'fa-solid fa-lock-open tab-lock-badge' : 'fa-solid fa-lock tab-lock-badge';
             }
         }
     });
@@ -257,6 +271,9 @@ function updateAuthUiState(isAuth) {
 // 5. INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Always start in locked state on page load / refresh
+    lockSystem(false);
+    
     initTabs();
     initSoundToggle();
     initQuickSamples();
@@ -266,25 +283,30 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchDbStatus();
     initModalEvents();
     initSecurityAuthEvents();
-
-    if (isSystemAuthenticated()) {
-        updateAuthUiState(true);
-        const passInput = document.getElementById('enrollPassword');
-        if (passInput) passInput.value = getStoredAuthPasscode();
-    }
 });
 
-// Tab navigation
+// Tab navigation: automatically locks when switching to another navigation option
 function initTabs() {
     dom.tabBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const target = btn.dataset.tab;
+            const currentActive = document.querySelector('.tab-btn.active')?.dataset?.tab;
 
-            // Intercept protected tabs if not authenticated
-            if (PROTECTED_TABS.includes(target) && !isSystemAuthenticated()) {
+            // If clicking the same active tab that is already open, do nothing
+            if (target === currentActive) return;
+
+            // If clicking a protected tab and not authorized for this specific tab:
+            if (PROTECTED_TABS.includes(target) && !isSystemAuthenticated(target)) {
                 e.preventDefault();
+                // Automatically lock previous tab session on navigation change
+                lockSystem(false);
                 openSecurityAuthModal(target);
                 return;
+            }
+
+            // If navigating away to any other tab (e.g. Scan or CNN), automatically lock immediately
+            if (currentActive !== target) {
+                lockSystem(false);
             }
 
             dom.tabBtns.forEach(b => b.classList.remove('active'));
@@ -1078,15 +1100,25 @@ function initSecurityAuthEvents() {
 
                 if (res.ok && data.success && data.authorized) {
                     audio.playSuccessChime();
-                    setSystemAuthenticated(passcode);
                     const targetToOpen = pendingProtectedTab || 'tab-directory';
+                    setSystemAuthenticated(targetToOpen, passcode);
                     closeSecurityAuthModal();
 
-                    // Switch to the requested tab
+                    // Activate the authorized tab directly
+                    dom.tabBtns.forEach(b => b.classList.remove('active'));
+                    dom.tabPanels.forEach(p => p.classList.remove('active'));
                     const targetBtn = document.querySelector(`.tab-btn[data-tab="${targetToOpen}"]`);
-                    if (targetBtn) targetBtn.click();
+                    const targetPanel = document.getElementById(targetToOpen);
+                    if (targetBtn) targetBtn.classList.add('active');
+                    if (targetPanel) targetPanel.classList.add('active');
 
-                    showToast("Access Granted: Administrator Mode Activated", "success");
+                    if (targetToOpen === 'tab-directory') {
+                        loadDirectory();
+                    } else if (targetToOpen === 'tab-config') {
+                        fetchDbStatus();
+                    }
+
+                    showToast(`Access Granted: Authorized for ${targetBtn?.innerText?.trim() || 'Section'}`, "success");
                 } else {
                     audio.playWarningTone();
                     if (dom.securityAuthCard) {
